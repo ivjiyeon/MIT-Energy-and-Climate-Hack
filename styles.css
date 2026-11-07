@@ -113,6 +113,21 @@ input[type=range] { width: 100%; accent-color: var(--brand); }
 .strat .lcc { font: 700 24px "Space Grotesk", sans-serif; }
 .strat dl { display: grid; grid-template-columns: auto auto; gap: 3px 10px; margin: 10px 0 0; font-size: 12px; }
 .strat dt { color: var(--muted); } .strat dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
+.payback-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 720px; }
+.payback-controls label { display: grid; gap: 4px; font-size: 12px; font-weight: 500; }
+.payback-controls select { width: 100%; font: inherit; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); }
+.payback-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.payback-metric { display: grid; gap: 3px; border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+.payback-metric b { font: 600 20px "Space Grotesk", sans-serif; }
+.payback-metric b.pos { color: var(--good); }
+.payback-metric b.neg { color: var(--bad); }
+.payback-controls + .payback-metrics + .chart-box { margin-top: 16px; }
+.electricity-controls { display: grid; grid-template-columns: minmax(220px, 1fr) auto minmax(240px, 1fr); gap: 12px; align-items: end; }
+.electricity-controls label { display: grid; gap: 4px; font-size: 12px; font-weight: 500; }
+.electricity-controls input, .electricity-controls select { width: 100%; min-width: 0; font: inherit; padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text); }
+#tariffStatus { min-height: 1.4em; margin: 10px 0 0; }
+#tariffStatus.warning, #tariffStatus.err { color: var(--bad); }
+#tariffStatus.ok { color: var(--good); }
 
 .table-wrap { overflow-x: auto; margin-top: 16px; }
 table.data { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
@@ -205,6 +220,8 @@ table.gloss th { text-align: left !important; }
 .chip.on .muted { color: inherit; opacity: .75; }
 
 @media (max-width: 1200px) { .strategies { grid-template-columns: repeat(2, minmax(0, 1fr)); } .nav { display: none; } }
+@media (max-width: 800px) { .payback-metrics { grid-template-columns: 1fr; } }
+@media (max-width: 800px) { .electricity-controls { grid-template-columns: 1fr; } .electricity-controls .btn { justify-self: start; } }
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; padding: 12px 16px; }
   .sidebar { position: static; max-height: none; }
@@ -215,6 +232,7 @@ table.gloss th { text-align: left !important; }
   .brand span { display: none; }
 }
 @media (max-width: 520px) { .strategies { grid-template-columns: 1fr; } .topbar { padding: 10px 16px; } .actions .btn { padding: 6px 9px; } }
+@media (max-width: 520px) { .payback-controls { grid-template-columns: 1fr; } }
 @media print {
   .topbar, .sidebar, .row, .toolbar, .drawer, .drawer-bg, #comsol, #btnReset { display: none !important; }
   .layout { display: block; padding: 0; } .card, .hero { box-shadow: none; break-inside: avoid; margin-bottom: 14px; }

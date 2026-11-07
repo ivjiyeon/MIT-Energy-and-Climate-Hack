@@ -72,6 +72,23 @@
       </details>
     </section>
 
+    <section id="payback" class="card">
+      <div class="card-head">
+        <h2>Annual savings &amp; payback</h2>
+        <p class="muted">Choose an option and a reference strategy. Payback compares their cumulative discounted costs, including upfront costs and replacements.</p>
+      </div>
+      <div class="payback-controls">
+        <label>Investment option<select id="paybackInvestment"></select></label>
+        <label>Compare against<select id="paybackReference"></select></label>
+      </div>
+      <div class="payback-metrics" id="paybackMetrics"></div>
+      <div class="chart-box">
+        <h3>Cumulative savings over time</h3>
+        <p class="muted small">Positive values mean the selected option has cost less overall than the reference.</p>
+        <div class="cwrap"><canvas id="chPayback"></canvas></div>
+      </div>
+    </section>
+
     <section id="thermal" class="card">
       <div class="card-head">
         <h2>Thermal model — representative day</h2>
@@ -92,6 +109,29 @@
       <div class="dayStats" id="dayStats"></div>
       <div class="chart-box"><h3>Monthly HVAC energy purchased</h3><div class="cwrap short"><canvas id="chMonthly"></canvas></div></div>
 
+    </section>
+
+    <section id="electricity" class="card">
+      <div class="card-head">
+        <h2>Electricity tariff model</h2>
+        <p class="muted">Load nearby commercial tariffs from OpenEI for the selected location. The chart averages first-tier weekday and weekend energy rates by hour and month, weighted by the current calendar’s weekday/weekend mix; tariff fixed charges and demand charges are not shown.</p>
+      </div>
+      <div class="electricity-controls">
+        <label>OpenEI API key
+          <input id="openeiKey" type="password" autocomplete="off" placeholder="Enter your free OpenEI API key">
+          <span class="muted small">Saved only in this browser; never added to share links. <a href="https://apps.openei.org/services/api/signup" target="_blank" rel="noopener">Get a free API key</a>.</span>
+        </label>
+        <button class="btn" type="button" id="btnLoadTariffs">Load commercial tariffs</button>
+        <label>Commercial rate plan
+          <select id="tariffSelect" disabled><option value="">Load tariffs to choose a rate plan</option></select>
+        </label>
+      </div>
+      <p class="small muted" id="tariffStatus" role="status">Enter an OpenEI API key to load commercial rates for this location.</p>
+      <div class="chart-box">
+        <h3>Average hourly electricity price by month</h3>
+        <p class="muted small">Rate schedule prices are shown in the tariff’s currency per kWh. USD-denominated rates feed the model’s electricity costs; its existing demand-charge assumption remains unchanged, and tariff fixed charges are not applied.</p>
+        <div class="cwrap tall"><canvas id="chElectricity"></canvas></div>
+      </div>
     </section>
 
     <section id="comsol" class="card">

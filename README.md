@@ -43,7 +43,9 @@ Paste the new tables into section 3 of `WHERE_PCM_WINS.md`, and check that the w
 ## What you can do
 
 - **Compare costs:** life-cycle cost, upfront cost, payback, CO₂, HVAC energy cost per kg of crop and power-outage ride-through for all four options.
+- **See operating savings and payback:** choose two strategies to compare annual operating-cost differences and see when the investment's cumulative discounted cost breaks even.
 - **Watch the physics:** a representative day per month, with indoor temperature, PCM temperature, % melted and HVAC load.
+- **Model electricity tariffs:** enter a free [OpenEI API key](https://apps.openei.org/services/api/signup) to load nearby commercial rates, inspect average weekday/weekend hourly prices by month, and use USD energy rates in the cost model. Tariff fixed charges and demand schedules are not imported; the app retains its existing demand-charge assumption. The key stays in local browser storage and is not shared in URLs.
 - **Outdoor temperatures:** the app automatically loads Open-Meteo hourly archive temperatures for the previous complete year and calculates a 24-hour average profile for each month and location. Built-in climate normals are used if the request fails.
 - **Find break-even points:** heatmaps of PCM price × energy price, and of melt temperature × PCM quantity (the optimizer).
 - **Sensitivity:** a tornado chart showing which assumption matters most.

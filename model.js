@@ -54,10 +54,10 @@
   };
 
   const CROPS = {
-    lettuce:    { name: 'Lettuce / leafy greens', lo: 17, hi: 24, critLo: 4, critHi: 30, yieldKg: 40, price: 6, cycle: 35 },
-    basil:      { name: 'Basil / herbs',          lo: 18, hi: 27, critLo: 10, critHi: 35, yieldKg: 25, price: 18, cycle: 35 },
-    tomato:     { name: 'Tomato',                 lo: 16, hi: 27, critLo: 8, critHi: 35, yieldKg: 50, price: 4, cycle: 90 },
-    strawberry: { name: 'Strawberry',             lo: 14, hi: 24, critLo: 2, critHi: 32, yieldKg: 15, price: 10, cycle: 120 },
+    lettuce:    { name: 'Lettuce / leafy greens', lo: 18, hi: 24, critLo: 4, critHi: 30, yieldKg: 40, price: 6, cycle: 35 },
+    basil:      { name: 'Basil / herbs',          lo: 18, hi: 24, critLo: 10, critHi: 35, yieldKg: 25, price: 18, cycle: 35 },
+    tomato:     { name: 'Tomato',                 lo: 18, hi: 24, critLo: 8, critHi: 35, yieldKg: 50, price: 4, cycle: 90 },
+    strawberry: { name: 'Strawberry',             lo: 18, hi: 24, critLo: 2, critHi: 32, yieldKg: 15, price: 10, cycle: 120 },
   };
 
   const STRATEGIES = [
@@ -309,6 +309,7 @@
   function economics(p, s, sim, mult) {
     mult = mult || {};
     const eMult = mult.energy == null ? 1 : mult.energy;
+    const electricityMult = mult.electricity == null ? 1 : mult.electricity;
     const pcmPrice = mult.pcmPrice == null ? p.pcmPrice : mult.pcmPrice;
     let elecKWh = 0, gasKWh = 0, elecCost = 0, peakKWh = 0, demandCost = 0;
     sim.months.forEach((mo, m) => {
@@ -317,13 +318,17 @@
         const onPeak = inWindow(h, p.peakStart, p.peakEnd);
         const e = mo.hr.elecKWh[h] * n;
         elecKWh += e; if (onPeak) peakKWh += e;
-        elecCost += e * (onPeak ? p.pricePeak : p.priceOff);
+        const hourlyRate = p._tariffProfile && p._tariffProfile.currency === 'USD' &&
+          p._tariffProfile.hourly && p._tariffProfile.hourly[m] &&
+          Number.isFinite(p._tariffProfile.hourly[m][h])
+          ? p._tariffProfile.hourly[m][h] : (onPeak ? p.pricePeak : p.priceOff);
+        elecCost += e * hourlyRate;
         gasKWh += mo.hr.gasKWh[h] * n;
       }
       demandCost += mo.peakElecKW * p.demandCharge;
     });
     const gasCost = gasKWh * p.gasPrice / KWH_PER_THERM;
-    const energyCost = (elecCost + gasCost) * eMult;
+    const energyCost = (elecCost * electricityMult + gasCost) * eMult;
     demandCost *= eMult;
     const co2t = (elecKWh * p.gridCO2 + gasKWh * (p.gasCO2 ?? GAS_CO2)) / 1000;
     const carbonCost = co2t * p.carbonPrice;
@@ -364,7 +369,7 @@
     }
     const annualOpex = energyCost + demandCost + carbonCost + maint + outageRisk + extraAnnual;
     return {
-      elecKWh, gasKWh, peakKWh, elecCost: elecCost * eMult, gasCost: gasCost * eMult, energyCost, demandCost,
+      elecKWh, gasKWh, peakKWh, elecCost: elecCost * electricityMult * eMult, gasCost: gasCost * eMult, energyCost, demandCost,
       carbonCost, co2t, maint, outageRisk, survives, standingCrop, annualYieldKg,
       pcmCapex, insCapex, hvacCapex, extraCapex, extraAnnual, capex, capHeat, capCool, annualOpex, lcc, cum, cumNom,
       costPerKg: (energyCost + demandCost) / annualYieldKg,

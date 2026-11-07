@@ -57,8 +57,8 @@
     { id: 'tariff', title: 'Energy & tariffs', open: false, fields: [
       { k: 'heating', l: 'Heating source', t: 'select', o: [['hp', 'Electric heat pump'], ['gas', 'Natural-gas boiler']] },
       { k: 'boilerEff', l: 'Boiler efficiency', u: '', t: 'number', min: 0.5, max: 1, step: 0.01 },
-      { k: 'priceOff', l: 'Electricity — off-peak', u: '$/kWh', t: 'number', min: 0, max: 2, step: 0.01 },
-      { k: 'pricePeak', l: 'Electricity — on-peak', u: '$/kWh', t: 'number', min: 0, max: 2, step: 0.01 },
+      { k: 'priceOff', l: 'Electricity — off-peak', u: '$/kWh', t: 'number', min: 0, max: 2, step: 0.01, h: 'Fallback rates; a selected USD OpenEI tariff overrides them.' },
+      { k: 'pricePeak', l: 'Electricity — on-peak', u: '$/kWh', t: 'number', min: 0, max: 2, step: 0.01, h: 'Fallback rates; a selected USD OpenEI tariff overrides them.' },
       { k: 'peakStart', l: 'Peak window start', u: 'h', t: 'range', min: 0, max: 23, step: 1 },
       { k: 'peakEnd', l: 'Peak window end', u: 'h', t: 'range', min: 0, max: 24, step: 1 },
       { k: 'demandCharge', l: 'Demand charge', u: '$/kW·month', t: 'number', min: 0, max: 60, step: 0.5 },
@@ -142,12 +142,257 @@
   let weatherRequestId = 0;
   let weatherRequestKey = null;
   let weatherStatusState = null;
+  let tariffRecords = [];
+  let tariffProfile = null;
+  let tariffRequestId = 0;
+  let tariffAbortController = null;
+  let tariffKeyStorageWarning = false;
   const charts = {};
 
   // ---------- Form ----------
   function fmtVal(f, v) {
     if (f.t === 'range') return `${v}${f.u ? ' ' + f.u : ''}`;
     return '';
+  }
+
+  function renderPayback() {
+    if (!R) return;
+    const investmentSelect = $('#paybackInvestment');
+    const referenceSelect = $('#paybackReference');
+    const priorInvestment = paybackInvestment || investmentSelect.value;
+    const priorReference = paybackReference || referenceSelect.value;
+    paybackInvestment = STRATEGIES.some((s) => s.id === priorInvestment) ? priorInvestment : R.verdict.bestPcm;
+    paybackReference = STRATEGIES.some((s) => s.id === priorReference) ? priorReference : R.verdict.bestNon;
+    if (paybackReference === paybackInvestment) {
+      paybackReference = STRATEGIES.find((s) => s.id !== paybackInvestment)?.id || R.verdict.bestNon;
+    }
+    const options = STRATEGIES.map((s) => `<option value="${s.id}">${s.name}</option>`).join('');
+    investmentSelect.innerHTML = options;
+    referenceSelect.innerHTML = options;
+    investmentSelect.value = paybackInvestment;
+    referenceSelect.value = paybackReference;
+    const investment = R[paybackInvestment].eco;
+    const reference = R[paybackReference].eco;
+    const annualSavings = reference.annualOpex - investment.annualOpex;
+    const upfrontDifference = investment.capex - reference.capex;
+    const paidBackAt = PF.paybackYear(investment.cum, reference.cum);
+    const paybackLabel = paidBackAt == null
+      ? `Not within ${P.horizon} years`
+      : paidBackAt === 0 ? 'Already lower upfront' : `${paidBackAt} years`;
+    const annualLabel = annualSavings >= 0 ? 'Annual operating cost saved' : 'Annual extra operating cost';
+    const annualColor = annualSavings >= 0 ? 'pos' : 'neg';
+    $('#paybackMetrics').innerHTML = `
+      <div class="payback-metric"><span class="muted small">${annualLabel} · year 1</span><b class="${annualColor}">${money(Math.abs(annualSavings))}/yr</b></div>
+      <div class="payback-metric"><span class="muted small">Additional upfront cost</span><b>${money(upfrontDifference)}</b></div>
+      <div class="payback-metric"><span class="muted small">Discounted payback</span><b>${paybackLabel}</b></div>`;
+    const c = COLORS();
+    const years = investment.cum.map((_, i) => i);
+    const savings = years.map((year) => reference.cum[year] - investment.cum[year]);
+    upsert('chPayback', {
+      type: 'line',
+      data: { labels: years, datasets: [
+        { label: 'Cumulative savings', data: savings, borderColor: annualSavings >= 0 ? c.pcm : c.bad, backgroundColor: annualSavings >= 0 ? c.pcm : c.bad, borderWidth: 3, pointRadius: 2, tension: 0.15 },
+        { label: 'Break-even', data: years.map(() => 0), borderColor: c.muted, borderDash: [5, 5], borderWidth: 1, pointRadius: 0 },
+      ] },
+      options: baseChartOpts({
+        scales: {
+          x: { title: { display: true, text: 'Year', color: c.muted }, ticks: { color: c.muted }, grid: { color: c.border } },
+          y: { title: { display: true, text: 'Savings vs reference', color: c.muted }, ticks: { color: c.muted, callback: (v) => money(v, 1) }, grid: { color: c.border } },
+        },
+        plugins: {
+          legend: { labels: { color: c.text, boxWidth: 12, usePointStyle: true } },
+          tooltip: { callbacks: { label: (x) => `${x.dataset.label}: ${money(x.raw)}` } },
+        },
+      }),
+    });
+  }
+  function initPayback() {
+    $('#paybackInvestment').onchange = (e) => {
+      paybackInvestment = e.target.value;
+      if (paybackReference === paybackInvestment) paybackReference = STRATEGIES.find((s) => s.id !== paybackInvestment)?.id;
+      renderPayback();
+    };
+    $('#paybackReference').onchange = (e) => {
+      paybackReference = e.target.value;
+      if (paybackInvestment === paybackReference) paybackInvestment = STRATEGIES.find((s) => s.id !== paybackReference)?.id;
+      renderPayback();
+    };
+  }
+  function tariffTierRate(tiers) {
+    if (!Array.isArray(tiers)) return null;
+    const isSell = (x) => x.sell === true || x.sell === 1 || x.sell === 'true';
+    const tier = tiers.find((x) => x && !isSell(x) && x.rate != null && Number.isFinite(Number(x.rate))) ||
+      tiers.find((x) => x && !isSell(x) && x.adj != null && Number.isFinite(Number(x.adj)));
+    if (!tier || (tier.unit && !/kwh/i.test(tier.unit))) return null;
+    return (Number(tier.rate) || 0) + (Number(tier.adj) || 0);
+  }
+  function tariffHourRate(schedule, rateStructure, m, h) {
+    const period = schedule && schedule[m] && schedule[m][h];
+    if (period == null || period === '' || !Number.isInteger(Number(period))) return null;
+    return tariffTierRate(rateStructure[Number(period)]);
+  }
+  function buildTariffProfile(record) {
+    const rateStructure = record.energyratestructure;
+    if (!Array.isArray(rateStructure) || !rateStructure.length) return null;
+    const weekdays = record.energyweekdayschedule;
+    const weekends = record.energyweekendschedule;
+    const year = new Date().getFullYear();
+    const hourly = [];
+    for (let m = 0; m < 12; m++) {
+      const sums = Array(24).fill(0);
+      let days = 0;
+      for (let d = 1; d <= PF.DAYS_IN_MONTH[m]; d++) {
+        const weekend = new Date(Date.UTC(year, m, d)).getUTCDay() % 6 === 0;
+        const schedule = weekend ? weekends : weekdays;
+        const fallback = weekend ? weekdays : weekends;
+        for (let h = 0; h < 24; h++) {
+          let rate = tariffHourRate(schedule, rateStructure, m, h);
+          if (rate == null) rate = tariffHourRate(fallback, rateStructure, m, h);
+          if (rate == null && rateStructure.length === 1) rate = tariffTierRate(rateStructure[0]);
+          if (rate == null || !Number.isFinite(rate)) return null;
+          sums[h] += rate;
+        }
+        days++;
+      }
+      hourly.push(sums.map((rate) => rate / days));
+    }
+    return { hourly, currency: String(record.currency || 'USD').toUpperCase(), year };
+  }
+  function tariffDistance(record) {
+    const climate = CLIMATES[P.climate];
+    const lat = Number(record.lat), lon = Number(record.lon ?? record.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return Infinity;
+    const rad = (x) => x * Math.PI / 180;
+    const dLat = rad(lat - climate.lat), dLon = rad(lon - climate.lon);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(climate.lat)) * Math.cos(rad(lat)) * Math.sin(dLon / 2) ** 2;
+    const bounded = Math.min(1, Math.max(0, a));
+    return 6371 * 2 * Math.atan2(Math.sqrt(bounded), Math.sqrt(1 - bounded));
+  }
+  function selectTariff(label) {
+    const record = tariffRecords.find((r) => String(r.label) === label);
+    if (!record) return;
+    tariffProfile = { ...buildTariffProfile(record), label: record.label, name: record.name || 'Unnamed rate', utility: record.utility || 'Utility', currency: String(record.currency || 'USD').toUpperCase() };
+    P._ignoreTariffProfile = false;
+    const select = $('#tariffSelect');
+    select.value = String(record.label);
+    try { localStorage.setItem(`pf-openei-rate-${P.climate}`, String(record.label)); } catch (e) { /* storage may be blocked */ }
+    const status = $('#tariffStatus');
+    status.className = `small ${tariffProfile.currency === 'USD' ? 'ok' : 'warning'}`;
+    status.textContent = tariffProfile.currency === 'USD'
+      ? `Using ${tariffProfile.name} · ${tariffProfile.utility}. OpenEI energy rates are included in the USD cost model; the app’s demand-charge assumption is unchanged and tariff fixed charges are excluded.${tariffKeyStorageWarning ? ' The API key could not be saved in this browser.' : ''}`
+      : `Showing ${tariffProfile.name} · ${tariffProfile.utility} in ${tariffProfile.currency}/kWh. It is not applied to USD cost calculations.${tariffKeyStorageWarning ? ' The API key could not be saved in this browser.' : ''}`;
+    update();
+  }
+  async function fetchTariffs() {
+    const apiKey = $('#openeiKey').value.trim();
+    if (!apiKey) {
+      let storageCleared = true;
+      try { localStorage.removeItem('pf-openei-key'); } catch (e) { storageCleared = false; }
+      tariffRecords = [];
+      tariffProfile = null;
+      P._ignoreTariffProfile = false;
+      P._tariffProfile = null;
+      $('#tariffSelect').disabled = true;
+      $('#tariffSelect').innerHTML = '<option value="">Enter an API key to load rates</option>';
+      update();
+      $('#tariffStatus').className = `small ${storageCleared ? 'muted' : 'warning'}`;
+      $('#tariffStatus').textContent = storageCleared
+        ? 'Enter an OpenEI API key before loading commercial tariffs. The previously saved key was cleared.'
+        : 'Enter an OpenEI API key before loading commercial tariffs. Browser storage could not clear the previously saved key.';
+      return;
+    }
+    tariffKeyStorageWarning = false;
+    try { localStorage.setItem('pf-openei-key', apiKey); } catch (e) { tariffKeyStorageWarning = true; }
+    if (tariffAbortController) tariffAbortController.abort();
+    const controller = new AbortController();
+    tariffAbortController = controller;
+    const requestId = ++tariffRequestId;
+    const climateKey = P.climate;
+    const climate = CLIMATES[climateKey];
+    const status = $('#tariffStatus');
+    status.className = 'small muted';
+    status.textContent = `Loading nearby commercial tariffs for ${climate.name}…${tariffKeyStorageWarning ? ' The key will only be used for this request.' : ''}`;
+    const select = $('#tariffSelect');
+    select.disabled = true;
+    try {
+      const params = new URLSearchParams({
+        version: 'latest', format: 'json', api_key: apiKey, sector: 'Commercial',
+        lat: climate.lat, lon: climate.lon, radius: '100', limit: '100', detail: 'full',
+      });
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      let response;
+      try {
+        response = await fetch(`https://api.openei.org/utility_rates?${params}`, { signal: controller.signal });
+      } finally {
+        clearTimeout(timeout);
+      }
+      if (!response.ok) throw new Error(`OpenEI returned HTTP ${response.status}.`);
+      const payload = await response.json();
+      if (payload.errors && payload.errors.length) {
+        const errors = Array.isArray(payload.errors) ? payload.errors : [payload.errors];
+        throw new Error(errors.map((e) => e.message || String(e)).join(' '));
+      }
+      if (!Array.isArray(payload.items)) throw new Error('OpenEI returned an unexpected response; no rate list was provided.');
+      if (requestId !== tariffRequestId || climateKey !== P.climate) return;
+      const usable = payload.items
+        .filter((r) => r && r.label && buildTariffProfile(r))
+        .sort((a, b) => tariffDistance(a) - tariffDistance(b));
+      if (!usable.length) throw new Error(`No usable commercial energy-rate schedules were found near ${climate.name}.`);
+      tariffRecords = usable;
+      select.innerHTML = usable.map((r) => {
+        const distance = tariffDistance(r);
+        const nearby = Number.isFinite(distance) ? ` · ${Math.round(distance)} km` : '';
+        const def = r.is_default === true || r.is_default === 1 || r.is_default === 'true' ? ' · default' : '';
+        return `<option value="${esc(r.label)}">${esc(r.utility || 'Utility')} — ${esc(r.name || 'Unnamed rate')}${nearby}${def}</option>`;
+      }).join('');
+      select.disabled = false;
+      let preferred = null;
+      try { preferred = localStorage.getItem(`pf-openei-rate-${climateKey}`); } catch (e) { /* storage may be blocked */ }
+      let chosen = usable.find((r) => String(r.label) === preferred);
+      if (!chosen) chosen = usable.find((r) => r.is_default === true || r.is_default === 1 || r.is_default === 'true') || usable[0];
+      selectTariff(String(chosen.label));
+    } catch (error) {
+      if (requestId !== tariffRequestId || controller.signal.aborted && climateKey !== P.climate) return;
+      tariffRecords = [];
+      tariffProfile = null;
+      select.disabled = true;
+      select.innerHTML = '<option value="">No tariff loaded</option>';
+      update();
+      status.className = 'small err';
+      status.textContent = controller.signal.aborted
+        ? `OpenEI request timed out. Check your connection and try again.${tariffKeyStorageWarning ? ' The key was not saved in this browser.' : ''}`
+        : `Could not load OpenEI tariffs: ${error.message}${tariffKeyStorageWarning ? ' The key was not saved in this browser.' : ''}`;
+    }
+  }
+  function initElectricity() {
+    const keyInput = $('#openeiKey');
+    try { keyInput.value = localStorage.getItem('pf-openei-key') || ''; } catch (e) { tariffKeyStorageWarning = true; }
+    $('#btnLoadTariffs').onclick = fetchTariffs;
+    keyInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') fetchTariffs(); });
+    $('#tariffSelect').onchange = (e) => selectTariff(e.target.value);
+    if (keyInput.value) fetchTariffs();
+  }
+  function renderElectricity() {
+    const c = COLORS();
+    const colors = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2', '#be123c', '#4d7c0f', '#7c3aed', '#c2410c', '#0f766e', '#a21caf'];
+    const profile = tariffProfile;
+    upsert('chElectricity', {
+      type: 'line',
+      data: { labels: Array.from({ length: 24 }, (_, h) => h), datasets: MONTHS.map((name, m) => ({
+        label: name, data: profile ? profile.hourly[m] : Array(24).fill(null),
+        borderColor: colors[m], backgroundColor: colors[m], borderWidth: 2, pointRadius: 0, tension: 0.12,
+      })) },
+      options: baseChartOpts({
+        scales: {
+          x: { title: { display: true, text: 'Hour of day', color: c.muted }, ticks: { color: c.muted, callback: (v) => `${String(v).padStart(2, '0')}:00` }, grid: { color: c.border } },
+          y: { title: { display: true, text: `${profile ? profile.currency : 'Currency'}/kWh`, color: c.muted }, ticks: { color: c.muted, callback: (v) => `${Number(v).toFixed(3)}` }, grid: { color: c.border } },
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: { color: c.text, boxWidth: 12, usePointStyle: true } },
+          tooltip: { callbacks: { label: (x) => `${x.dataset.label}: ${Number(x.raw).toFixed(4)} ${profile ? profile.currency : ''}/kWh` } },
+        },
+      }),
+    });
   }
   function buildForm() {
     const form = $('#form');
@@ -206,7 +451,21 @@
     if (k === 'facility' && e.type === 'change') { const fv = facilityVals(v); delete fv.name; Object.assign(P, fv); }
     if (k === 'crop' && e.type === 'change') Object.assign(P, cropVals(v));
     if (k === 'pcmType' && e.type === 'change') usePcm(v);
-    if (k === 'climate' && e.type === 'change') fetchWeatherProfile(true);
+    if (k === 'climate' && e.type === 'change') {
+      fetchWeatherProfile(true);
+      tariffProfile = null;
+      tariffRecords = [];
+      P._tariffProfile = null;
+      if (tariffAbortController) tariffAbortController.abort();
+      tariffRequestId++;
+      $('#tariffSelect').disabled = true;
+      $('#tariffSelect').innerHTML = '<option value="">Load tariffs for this location</option>';
+      $('#tariffStatus').className = 'small muted';
+      $('#tariffStatus').textContent = $('#openeiKey').value.trim()
+        ? `Location changed to ${CLIMATES[v].name}; loading nearby commercial tariffs…`
+        : 'Enter an OpenEI API key to load commercial rates for this location.';
+      if ($('#openeiKey').value.trim()) fetchTariffs();
+    }
     syncForm();
     markPresets();
     schedule();
@@ -280,21 +539,34 @@
   // ---------- Main update ----------
   function update() {
     sanitize();
+    P._tariffProfile = !P._ignoreTariffProfile && tariffProfile && tariffProfile.currency === 'USD' ? tariffProfile : null;
     P._loads = LOADS && $('#useLoads').checked ? LOADS : null;
     R = PF.runAll(P);
     renderVerdict();
     renderCards();
+    renderPayback();
     renderCum();
     renderBreak();
     renderDetail();
     renderCalc();
     renderDay();
     renderMonthly();
+    renderElectricity();
     renderPriceMap();
     renderDesignMap(null);
     renderTornado();
     renderRef();
     renderWeatherStatus();
+    if (tariffProfile && P._ignoreTariffProfile) {
+      $('#tariffStatus').className = 'small warning';
+      $('#tariffStatus').textContent = `Showing ${tariffProfile.name} in the chart; the current scenario uses the fallback electricity prices instead.`;
+    } else if (tariffProfile && tariffProfile.currency === 'USD') {
+      $('#tariffStatus').className = 'small ok';
+      $('#tariffStatus').textContent = `Using ${tariffProfile.name} · ${tariffProfile.utility}. OpenEI energy rates are included in the USD cost model; the app’s demand-charge assumption is unchanged and tariff fixed charges are excluded.${tariffKeyStorageWarning ? ' The API key could not be saved in this browser.' : ''}`;
+    } else if (tariffProfile) {
+      $('#tariffStatus').className = 'small warning';
+      $('#tariffStatus').textContent = `Showing ${tariffProfile.name} · ${tariffProfile.utility} in ${tariffProfile.currency}/kWh. It is not applied to USD cost calculations.${tariffKeyStorageWarning ? ' The API key could not be saved in this browser.' : ''}`;
+    }
     saveHash();
   }
 
@@ -519,6 +791,8 @@
 
   // ---------- Exact cost calculation (worked example) ----------
   let calcId = 'pcm';
+  let paybackInvestment = null;
+  let paybackReference = null;
   function renderCalc() {
     if (!R) return;
     $('#calcChips').innerHTML = STRATEGIES.map((s) => `<button type="button" class="chip ${s.id === calcId ? 'on' : ''}" data-id="${s.id}">${s.name}</button>`).join('');
@@ -549,9 +823,11 @@
 Gas          G = Σₘ daysₘ × Σₕ heat(m,h) ÷ boiler eff.  = ${n0(e.gasKWh)} kWh/yr` : ''}</div>
 
       <h4>2 · Yearly energy cost (year 1)</h4>
-      <div class="eq">Energy = on-peak kWh × on-peak price + off-peak kWh × off-peak price${gas ? ' + gas kWh ÷ 29.31 × $/therm' : ''}
+      <div class="eq">${P._tariffProfile
+        ? `Electricity = ΣₘΣₕ e(m,h) × OpenEI rate(m,h) = ${usd(e.elecCost)}${gas ? `\nGas          = ${n0(e.gasKWh)} ÷ 29.31 × $${P.gasPrice} = ${usd(e.gasCost)}` : ''}\nEnergy total = <b>${usd(e.energyCost)}</b>`
+        : `Energy = on-peak kWh × on-peak price + off-peak kWh × off-peak price${gas ? ' + gas kWh ÷ 29.31 × $/therm' : ''}
        = ${n0(e.peakKWh)} × $${P.pricePeak} + ${n0(off)} × $${P.priceOff}${gas ? ` + ${n0(e.gasKWh)} ÷ 29.31 × $${P.gasPrice}` : ''}
-       = <b>${usd(e.energyCost)}</b></div>
+       = <b>${usd(e.energyCost)}</b>`}</div>
 
       <h4>3 · Demand charges (year 1)</h4>
       <p class="calc-note">Each month's highest hourly electric draw (kW) × the demand charge, summed over the 12 months.</p>
@@ -647,14 +923,17 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
 
     const sum = (x) => x.reduce((s, v) => s + v, 0);
     const kwhA = sum(A.elecKWh) + sum(A.gasKWh), kwhB = sum(B.elecKWh) + sum(B.gasKWh);
-    const cost = (hr) => hr.elecKWh.reduce((s, e, h) => s + e * (inPeak(h) ? P.pricePeak : P.priceOff), 0) + sum(hr.gasKWh) * P.gasPrice / 29.31;
+    const cost = (hr) => hr.elecKWh.reduce((s, e, h) => {
+      const liveRate = P._tariffProfile && P._tariffProfile.hourly[month][h];
+      return s + e * (Number.isFinite(liveRate) ? liveRate : inPeak(h) ? P.pricePeak : P.priceOff);
+    }, 0) + sum(hr.gasKWh) * P.gasPrice / 29.31;
     const pkA = Math.max(...A.heatW, ...A.coolW) / 1000, pkB = Math.max(...B.heatW, ...B.coolW) / 1000;
     const onPk = (hr) => hr.elecKWh.reduce((s, e, h) => s + (inPeak(h) ? e : 0), 0);
     $('#dayStats').innerHTML = `
       <div><b>${num(kwhA)} → ${num(kwhB)} kWh</b>energy purchased this day</div>
       <div><b>${money(cost(A))} → ${money(cost(B))}</b>energy cost this day</div>
       <div><b>${num(pkA)} → ${num(pkB)} kW</b>peak HVAC load</div>
-      <div><b>${num(onPk(A))} → ${num(onPk(B))} kWh</b>on-peak electricity</div>`;
+      <div><b>${num(onPk(A))} → ${num(onPk(B))} kWh</b>electricity in configured peak window</div>`;
     if (comsol) scoreComsol(B);
   }
   const inPeak = (h) => (P.peakStart <= P.peakEnd ? h >= P.peakStart && h < P.peakEnd : h >= P.peakStart || h < P.peakEnd);
@@ -837,13 +1116,18 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
   // ---------- Tornado ----------
   function renderTornado() {
     const base = R.verdict.savings;
+    const liveTariff = !!P._tariffProfile;
+    const electricityLow = liveTariff ? { _electricityMult: 0.7 } : { priceOff: P.priceOff * 0.7, pricePeak: P.pricePeak * 0.7 };
+    const electricityHigh = liveTariff ? { _electricityMult: 1.3 } : { priceOff: P.priceOff * 1.3, pricePeak: P.pricePeak * 1.3 };
     const tests = [
       ['PCM price ±50%', { pcmPrice: P.pcmPrice * 0.5 }, { pcmPrice: P.pcmPrice * 1.5 }, true],
-      ['Electricity price ±30%', { priceOff: P.priceOff * 0.7, pricePeak: P.pricePeak * 0.7 }, { priceOff: P.priceOff * 1.3, pricePeak: P.pricePeak * 1.3 }, true],
+      [liveTariff ? 'OpenEI electricity rates ±30%' : 'Electricity price ±30%', electricityLow, electricityHigh, true],
       ['Demand charge ±50%', { demandCharge: P.demandCharge * 0.5 }, { demandCharge: P.demandCharge * 1.5 }, true],
       ['Discount rate 3% / 10%', { discount: 3 }, { discount: 10 }, true],
       ['HVAC $/kW ±50%', { hvacCost: P.hvacCost * 0.5 }, { hvacCost: P.hvacCost * 1.5 }, true],
-      ['Peak/off-peak spread ×0.5 / ×2', { pricePeak: P.priceOff + (P.pricePeak - P.priceOff) * 0.5 }, { pricePeak: P.priceOff + (P.pricePeak - P.priceOff) * 2 }, true],
+      ...(liveTariff
+        ? [['OpenEI electricity rates ×0.5 / ×2', { _electricityMult: 0.5 }, { _electricityMult: 2 }, true]]
+        : [['Peak/off-peak spread ×0.5 / ×2', { pricePeak: P.priceOff + (P.pricePeak - P.priceOff) * 0.5 }, { pricePeak: P.priceOff + (P.pricePeak - P.priceOff) * 2 }, true]]),
       ['PCM quantity ±50%', { pcmKg: P.pcmKg * 0.5 }, { pcmKg: P.pcmKg * 1.5 }, false],
       ['Melting point ±3 °C', { pcmMelt: P.pcmMelt - 3 }, { pcmMelt: P.pcmMelt + 3 }, false],
       ['Warming −1 / +2 °C', { tempOffset: P.tempOffset - 1 }, { tempOffset: P.tempOffset + 2 }, false],
@@ -855,7 +1139,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
       const f = (d) => {
         const q = { ...P, ...d };
         if (econOnly) {
-          const e = (id) => PF.economics(q, R[id].s, R[id].sim).lcc;
+          const e = (id) => PF.economics(q, R[id].s, R[id].sim, d._electricityMult == null ? null : { electricity: d._electricityMult }).lcc;
           return Math.min(e('base'), e('trad')) - Math.min(e('pcm'), e('hybrid'));
         }
         return PF.runAll(q).verdict.savings;
@@ -879,8 +1163,9 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
   // ---------- Paths to a PCM win ----------
   function leverList() {
     const fan = { pcmFan: true, pcmThick: Math.min(P.pcmThick, 6) };
-    const tou = { pricePeak: Math.max(P.pricePeak, 0.55), demandCharge: Math.max(P.demandCharge, 30) };
-    const grid = { priceOff: 0.45, pricePeak: 0.45, demandCharge: 0 };
+    const replaceLiveTariff = P._tariffProfile ? { _ignoreTariffProfile: true } : {};
+    const tou = { ...replaceLiveTariff, pricePeak: Math.max(P.pricePeak, 0.55), demandCharge: Math.max(P.demandCharge, 30) };
+    const grid = { ...replaceLiveTariff, priceOff: 0.45, pricePeak: 0.45, demandCharge: 0 };
     const L = [
       ['Your current inputs (best PCM design)', 'Same inputs; only the PCM melt point and quantity are optimized.', {}],
       ['Fan-assisted thin panels', 'Forced air over 6 mm panels, so the PCM fully cycles each day. Fan energy and cost included.', fan],
@@ -1178,7 +1463,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
     lines.push(['Outage ride-through h', ...STRATEGIES.map((s) => R[s.id].sim.rideThrough.toFixed(2))]);
     lines.push([], ['Year', ...STRATEGIES.map((s) => s.name + ' cumulative discounted $')]);
     R.base.eco.cum.forEach((_, y) => lines.push([y, ...STRATEGIES.map((s) => R[s.id].eco.cum[y].toFixed(0))]));
-    lines.push([], ['Inputs']); Object.entries(P).forEach(([k, v]) => lines.push([k, v]));
+    lines.push([], ['Inputs']); Object.entries(P).forEach(([k, v]) => { if (k[0] !== '_') lines.push([k, v]); });
     const csv = lines.map((r) => r.map((x) => (/[",]/.test(String(x)) ? `"${String(x).replace(/"/g, '""')}"` : x)).join(',')).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
@@ -1542,7 +1827,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
     buildForm(); buildPresets();
     $('#form').addEventListener('input', onInput);
     $('#form').addEventListener('change', onInput);
-    initCustomize(); initComsolTools(); renderNotes(); initMethod(); renderMethod(); initGlossary(); initCalc(); buildMonthChips(); initComsol(); initScan(); initTheme(); renderRef();
+    initCustomize(); initComsolTools(); renderNotes(); initMethod(); renderMethod(); initGlossary(); initCalc(); initPayback(); initElectricity(); buildMonthChips(); initComsol(); initScan(); initTheme(); renderRef();
     const means = Array.from({ length: 12 }, (_, m) => PF.climateMean(P, m));
     month = means.indexOf(Math.min(...means));
     syncForm(); markPresets(); update();
