@@ -44,6 +44,7 @@ Paste the new tables into section 3 of `WHERE_PCM_WINS.md`, and check that the w
 
 - **Compare costs:** life-cycle cost, upfront cost, payback, CO₂, HVAC energy cost per kg of crop and power-outage ride-through for all four options.
 - **Watch the physics:** a representative day per month, with indoor temperature, PCM temperature, % melted and HVAC load.
+- **Outdoor temperatures:** the app automatically loads Open-Meteo hourly archive temperatures for the previous complete year and calculates a 24-hour average profile for each month and location. Built-in climate normals are used if the request fails.
 - **Find break-even points:** heatmaps of PCM price × energy price, and of melt temperature × PCM quantity (the optimizer).
 - **Sensitivity:** a tornado chart showing which assumption matters most.
 - **Scan scenarios:** 11 cities × 3 farm types ranked by PCM savings and break-even PCM price.

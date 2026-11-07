@@ -174,11 +174,15 @@ table.data td.src { white-space: normal; min-width: 240px; max-width: 380px; tex
 table.data .btn { padding: 3px 9px; font-size: 12px; }
 .drawer .row select { width: auto; flex: 1; }
 .item { border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-bottom: 10px; display: grid; gap: 8px; }
+.weather-control { margin-top: 10px; }
+.weather-control p { margin: 0; }
+.weather-control .btn { justify-self: start; }
 .item .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .item label { font-size: 12px; color: var(--muted); display: grid; gap: 3px; }
 .item .del { justify-self: end; }
 .item label.toggle { display: flex; color: var(--text); }
 .ok { color: var(--good); } .err { color: var(--bad); white-space: pre-wrap; }
+.warning { color: #a16207; }
 
 /* Cost calculation */
 .calc .eq { font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); border-radius: 10px; padding: 10px 14px; margin: 6px 0 14px; overflow-x: auto; white-space: pre; }

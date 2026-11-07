@@ -13,17 +13,17 @@
   // Approximate climate normals: monthly mean air temp (°C), mean daily half-range (°C),
   // global horizontal irradiation (kWh/m²/day). Sources: NOAA/NASA POWER-style normals, rounded.
   const CLIMATES = {
-    boston:      { name: 'Boston, USA',       lat: 42.4,  amp: 4.5, mean: [-1.5, -0.5, 3.5, 9, 14.5, 20, 23, 22.5, 18.5, 12, 7, 1.5],      ghi: [1.9, 2.8, 3.9, 4.9, 5.8, 6.3, 6.3, 5.6, 4.5, 3.2, 2.0, 1.6] },
-    minneapolis: { name: 'Minneapolis, USA',  lat: 45.0,  amp: 5.5, mean: [-9.5, -6.5, 0, 8, 15, 20.5, 23, 21.5, 16.5, 9, 0.5, -7],       ghi: [2.0, 3.0, 4.1, 5.0, 5.9, 6.4, 6.5, 5.6, 4.4, 3.0, 1.9, 1.6] },
-    toronto:     { name: 'Toronto, Canada',   lat: 43.7,  amp: 4.5, mean: [-5.5, -4.5, 0, 7, 13, 18.5, 21.5, 20.5, 16, 9.5, 3.5, -2],      ghi: [1.7, 2.7, 3.8, 4.8, 5.8, 6.3, 6.4, 5.5, 4.2, 2.8, 1.7, 1.4] },
-    denver:      { name: 'Denver, USA',       lat: 39.7,  amp: 8.0, mean: [0, 1, 5, 9, 14.5, 20, 23.5, 22.5, 17.5, 10.5, 4, -0.5],         ghi: [2.5, 3.4, 4.6, 5.7, 6.3, 7.0, 6.9, 6.1, 5.2, 3.9, 2.7, 2.2] },
-    phoenix:     { name: 'Phoenix, USA',      lat: 33.4,  amp: 7.5, mean: [13, 15, 18, 22, 27, 32.5, 35, 34.5, 31.5, 24.5, 17.5, 12.5],    ghi: [3.3, 4.3, 5.6, 7.0, 7.9, 8.3, 7.6, 7.0, 6.2, 5.0, 3.7, 3.1] },
-    miami:       { name: 'Miami, USA',        lat: 25.8,  amp: 4.0, mean: [20, 21, 22.5, 24.5, 27, 28, 29, 29, 28, 26.5, 23.5, 21.5],      ghi: [3.6, 4.4, 5.4, 6.2, 6.2, 5.8, 6.0, 5.6, 5.0, 4.5, 3.8, 3.4] },
-    seattle:     { name: 'Seattle, USA',      lat: 47.6,  amp: 4.0, mean: [5.5, 6, 8, 10, 13.5, 16, 19, 19.5, 16.5, 11.5, 7.5, 5],         ghi: [0.9, 1.6, 2.8, 4.1, 5.2, 5.8, 6.3, 5.3, 3.8, 2.1, 1.1, 0.7] },
-    oslo:        { name: 'Oslo, Norway',      lat: 59.9,  amp: 3.5, mean: [-4, -4, 0, 5, 11, 15, 17, 16, 11.5, 6, 1, -3],                  ghi: [0.2, 0.8, 2.0, 3.4, 4.9, 5.5, 5.2, 4.0, 2.4, 1.1, 0.3, 0.1] },
-    dubai:       { name: 'Dubai, UAE',        lat: 25.2,  amp: 5.0, mean: [19.5, 20.5, 23.5, 27.5, 31.5, 33.5, 35.5, 35.5, 33, 29.5, 25, 21], ghi: [4.1, 5.0, 5.9, 6.8, 7.6, 7.7, 7.2, 6.8, 6.3, 5.4, 4.4, 3.9] },
-    singapore:   { name: 'Singapore',         lat: 1.3,   amp: 3.5, mean: [26.5, 27, 27.5, 28, 28.5, 28.5, 28, 28, 27.5, 27.5, 27, 26.5], ghi: [4.4, 5.2, 5.0, 4.7, 4.4, 4.4, 4.4, 4.5, 4.6, 4.4, 3.9, 3.9] },
-    nairobi:     { name: 'Nairobi, Kenya',    lat: -1.3,  amp: 6.0, mean: [19.5, 20, 20.5, 20, 19, 17.5, 16.5, 17, 18.5, 19.5, 19, 19],     ghi: [6.2, 6.6, 6.3, 5.4, 4.8, 4.5, 4.0, 4.3, 5.3, 5.8, 5.4, 5.8] },
+    boston:      { name: 'Boston, USA',       lat: 42.4, lon: -71.1,  amp: 4.5, mean: [-1.5, -0.5, 3.5, 9, 14.5, 20, 23, 22.5, 18.5, 12, 7, 1.5],      ghi: [1.9, 2.8, 3.9, 4.9, 5.8, 6.3, 6.3, 5.6, 4.5, 3.2, 2.0, 1.6] },
+    minneapolis: { name: 'Minneapolis, USA',  lat: 45.0, lon: -93.3,  amp: 5.5, mean: [-9.5, -6.5, 0, 8, 15, 20.5, 23, 21.5, 16.5, 9, 0.5, -7],       ghi: [2.0, 3.0, 4.1, 5.0, 5.9, 6.4, 6.5, 5.6, 4.4, 3.0, 1.9, 1.6] },
+    toronto:     { name: 'Toronto, Canada',   lat: 43.7, lon: -79.4,  amp: 4.5, mean: [-5.5, -4.5, 0, 7, 13, 18.5, 21.5, 20.5, 16, 9.5, 3.5, -2],      ghi: [1.7, 2.7, 3.8, 4.8, 5.8, 6.3, 6.4, 5.5, 4.2, 2.8, 1.7, 1.4] },
+    denver:      { name: 'Denver, USA',       lat: 39.7, lon: -105.0, amp: 8.0, mean: [0, 1, 5, 9, 14.5, 20, 23.5, 22.5, 17.5, 10.5, 4, -0.5],         ghi: [2.5, 3.4, 4.6, 5.7, 6.3, 7.0, 6.9, 6.1, 5.2, 3.9, 2.7, 2.2] },
+    phoenix:     { name: 'Phoenix, USA',      lat: 33.4, lon: -112.1, amp: 7.5, mean: [13, 15, 18, 22, 27, 32.5, 35, 34.5, 31.5, 24.5, 17.5, 12.5],    ghi: [3.3, 4.3, 5.6, 7.0, 7.9, 8.3, 7.6, 7.0, 6.2, 5.0, 3.7, 3.1] },
+    miami:       { name: 'Miami, USA',        lat: 25.8, lon: -80.2,  amp: 4.0, mean: [20, 21, 22.5, 24.5, 27, 28, 29, 29, 28, 26.5, 23.5, 21.5],      ghi: [3.6, 4.4, 5.4, 6.2, 6.2, 5.8, 6.0, 5.6, 5.0, 4.5, 3.8, 3.4] },
+    seattle:     { name: 'Seattle, USA',      lat: 47.6, lon: -122.3, amp: 4.0, mean: [5.5, 6, 8, 10, 13.5, 16, 19, 19.5, 16.5, 11.5, 7.5, 5],         ghi: [0.9, 1.6, 2.8, 4.1, 5.2, 5.8, 6.3, 5.3, 3.8, 2.1, 1.1, 0.7] },
+    oslo:        { name: 'Oslo, Norway',      lat: 59.9, lon: 10.8,   amp: 3.5, mean: [-4, -4, 0, 5, 11, 15, 17, 16, 11.5, 6, 1, -3],                  ghi: [0.2, 0.8, 2.0, 3.4, 4.9, 5.5, 5.2, 4.0, 2.4, 1.1, 0.3, 0.1] },
+    dubai:       { name: 'Dubai, UAE',         lat: 25.2, lon: 55.3,  amp: 5.0, mean: [19.5, 20.5, 23.5, 27.5, 31.5, 33.5, 35.5, 35.5, 33, 29.5, 25, 21], ghi: [4.1, 5.0, 5.9, 6.8, 7.6, 7.7, 7.2, 6.8, 6.3, 5.4, 4.4, 3.9] },
+    singapore:   { name: 'Singapore',         lat: 1.3,   lon: 103.8, amp: 3.5, mean: [26.5, 27, 27.5, 28, 28.5, 28.5, 28, 28, 27.5, 27.5, 27, 26.5], ghi: [4.4, 5.2, 5.0, 4.7, 4.4, 4.4, 4.4, 4.5, 4.6, 4.4, 3.9, 3.9] },
+    nairobi:     { name: 'Nairobi, Kenya',    lat: -1.3, lon: 36.8,   amp: 6.0, mean: [19.5, 20, 20.5, 20, 19, 17.5, 16.5, 17, 18.5, 19.5, 19, 19],     ghi: [6.2, 6.6, 6.3, 5.4, 4.8, 4.5, 4.0, 4.3, 5.3, 5.8, 5.4, 5.8] },
   };
 
   const FACILITIES = {
@@ -87,6 +87,24 @@
 
   const ampOf = (clim, m) => (Array.isArray(clim.amp) ? clim.amp[m] : clim.amp);
   const toutAt = (t, mean, amp) => mean + amp * Math.cos(2 * Math.PI * (t - 15) / 24);
+  function climateMean(p, month) {
+    const profile = p && p.weatherProfile;
+    if (profile && profile.climate === p.climate && Array.isArray(profile.mean) &&
+      profile.mean.length === 12 && Number.isFinite(profile.mean[month])) return profile.mean[month];
+    return CLIMATES[p.climate].mean[month];
+  }
+  function climateTempAt(p, month, hour) {
+    const profile = p && p.weatherProfile;
+    const hourly = profile && profile.climate === p.climate && profile.hourly;
+    if (Array.isArray(hourly) && hourly.length === 12 && Array.isArray(hourly[month]) &&
+      hourly[month].length === 24) {
+      const h = ((hour % 24) + 24) % 24;
+      const value = hourly[month][Math.floor(h)];
+      if (Number.isFinite(value)) return value;
+    }
+    const clim = CLIMATES[p.climate];
+    return toutAt(hour, clim.mean[month], ampOf(clim, month));
+  }
   // Heat-pump / chiller efficiency vs outdoor temperature (rated at 7 °C heating, 27 °C cooling); editable via p.*
   const copHeat = (To, p) => { p = p || {}; const r = p.copH ?? 3.0; return Math.max(Math.min(1.6, r), Math.min(5 * r / 3, r + (p.copHSlope ?? 0.07) * (To - 7))); };
   const copCool = (To, p) => { p = p || {}; const r = p.copC ?? 4.2; return Math.max(Math.min(2.0, r), Math.min(6.5 * r / 4.2, r - (p.copCSlope ?? 0.08) * (To - 27))); };
@@ -132,7 +150,7 @@
   function simulateDay(p, tp, month, opts) {
     opts = opts || {};
     const clim = CLIMATES[p.climate];
-    const mean = clim.mean[month] + (p.tempOffset || 0), amp = ampOf(clim, month), G = clim.ghi[month];
+    const mean = climateMean(p, month) + (p.tempOffset || 0), amp = ampOf(clim, month), G = clim.ghi[month];
     const D = dayLength(clim.lat, month);
     const solarFac = p.floorArea * p.tau * p.solarSens * (p.glazedFrac > 0 ? 1 : 0);
     const lightGain = p.lightW * p.floorArea * (p.lightSens ?? 0.75);
@@ -176,7 +194,7 @@
         }
         for (let k = 0; k < nPerHour; k++) {
           const t = h + (k + 0.5) / nPerHour;
-          const To = toutAt(t, mean, amp);
+          const To = climateTempAt(p, month, t) + (p.tempOffset || 0);
           const Qsol = solarFac * solarAt(t, D, G);
           const Qint = (lightsHour ? lightGain : 0) + fanW;
           const Qpcm = hasPCM ? tp.UApcm * (Tin - Tp) : 0;
@@ -215,7 +233,7 @@
   /* HVAC-off, lights-off free float from a recorded hourly state; returns hours until a crop limit is breached. */
   function rideThrough(p, tp, month, startHour, state) {
     const clim = CLIMATES[p.climate];
-    const mean = clim.mean[month] + (p.tempOffset || 0), amp = ampOf(clim, month), G = clim.ghi[month];
+    const mean = climateMean(p, month) + (p.tempOffset || 0), amp = ampOf(clim, month), G = clim.ghi[month];
     const D = dayLength(clim.lat, month);
     const solarFac = p.floorArea * p.tau * p.solarSens * (p.glazedFrac > 0 ? 1 : 0);
     const enth = makeEnthalpy(tp.pcm, p.pcmMelt, p.pcmRange);
@@ -224,7 +242,7 @@
     const dt = 120, maxH = 72;
     for (let s = 0; s < maxH * 3600 / dt; s++) {
       const t = (startHour + s * dt / 3600) % 24;
-      const To = toutAt(t, mean, amp);
+      const To = climateTempAt(p, month, t) + (p.tempOffset || 0);
       // passive vents assumed to open in a greenhouse outage only if cooler outside
       const UA = tp.UAtot + (p.econ && Tin > p.hi && To < Tin ? 0.335 * tp.g.vol * (p.ventACH ?? 20) : 0); // passive roof vents
       const Qpcm = hasPCM ? tp.UApcm * (Tin - Tp) : 0;
@@ -250,7 +268,8 @@
     }
     // Outage ride-through: coldest month starting at dusk, hottest month starting late morning.
     const clim = CLIMATES[p.climate];
-    const coldM = argMin(clim.mean), hotM = argMax(clim.mean);
+    const means = Array.from({ length: 12 }, (_, m) => climateMean(p, m));
+    const coldM = argMin(means), hotM = argMax(means);
     const coldStart = Math.round(12 + months[coldM].D / 2);
     const rtCold = rideThrough(p, tp, coldM, coldStart, months[coldM].hr.state[coldStart % 24]);
     const rtHot = rideThrough(p, tp, hotM, 11, months[hotM].hr.state[11]);
@@ -406,6 +425,7 @@
 
   const API = {
     MONTHS, DAYS_IN_MONTH, CLIMATES, FACILITIES, PCMS, CROPS, STRATEGIES,
+    climateMean, climateTempAt,
     BUILTIN, registerLibrary, dayLength, thermalParams, simulateDay, simulateYear, economics, runAll, verdict, paybackYear, copHeat, copCool,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

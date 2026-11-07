@@ -103,7 +103,8 @@
   ];
 
   const BASE_DEFAULTS = {
-    climate: 'boston', facility: 'greenhouse', crop: 'lettuce', tempOffset: 0,
+    // climate: 'boston', facility: 'greenhouse', crop: 'lettuce', tempOffset: 0, weatherProfile: null,
+    climate: 'denver', facility: 'greenhouse', crop: 'tomato', tempOffset: 0, weatherProfile: null,
     pcmType: 'paraffin', pcmKg: 12, pcmMelt: 20, pcmRange: 2, pcmThick: 15, hConv: 6, pcmPrice: 5, pcmInstall: 12,
     smart: true, preHours: 4, prePower: 25,
     heating: 'hp', boilerEff: 0.85, priceOff: 0.14, pricePeak: 0.32, peakStart: 16, peakEnd: 21, demandCharge: 18,
@@ -138,6 +139,9 @@
   let R = null; // latest runAll result
   let month = 0;
   let comsol = null;
+  let weatherRequestId = 0;
+  let weatherRequestKey = null;
+  let weatherStatusState = null;
   const charts = {};
 
   // ---------- Form ----------
@@ -202,6 +206,7 @@
     if (k === 'facility' && e.type === 'change') { const fv = facilityVals(v); delete fv.name; Object.assign(P, fv); }
     if (k === 'crop' && e.type === 'change') Object.assign(P, cropVals(v));
     if (k === 'pcmType' && e.type === 'change') usePcm(v);
+    if (k === 'climate' && e.type === 'change') fetchWeatherProfile(true);
     syncForm();
     markPresets();
     schedule();
@@ -224,7 +229,7 @@
     const fv = facilityVals(FACILITIES[v.facility] ? v.facility : P.facility); delete fv.name;
     Object.assign(P, fv, cropVals(CROPS[v.crop] ? v.crop : P.crop), v);
     if (v.pcmType && v.pcmPrice == null) P.pcmPrice = PCMS[v.pcmType].price;
-    syncForm(); markPresets(); update();
+    syncForm(); markPresets(); update(); fetchWeatherProfile(true);
   }
   function markPresets() {
     document.querySelectorAll('#presetChips .chip').forEach((ch, i) => {
@@ -289,7 +294,98 @@
     renderDesignMap(null);
     renderTornado();
     renderRef();
+    renderWeatherStatus();
     saveHash();
+  }
+
+  function renderWeatherStatus(message, kind) {
+    const status = $('#weatherStatus');
+    if (!status) return;
+    if (message) {
+      weatherStatusState = { climate: P.climate, message, kind: kind || 'info' };
+    }
+    const profile = P.weatherProfile;
+    const active = profile && profile.climate === P.climate;
+    const state = weatherStatusState && weatherStatusState.climate === P.climate ? weatherStatusState : null;
+    status.textContent = state ? state.message : active
+      ? `Using Open-Meteo hourly averages for ${profile.year}.`
+      : 'Using built-in climate normals.';
+    const classes = { warning: 'warning', error: 'err', success: 'ok', info: 'muted' };
+    status.className = `small ${state ? classes[state.kind] || 'muted' : 'muted'}`;
+  }
+  async function fetchWeatherProfile(force) {
+    const climateKey = P.climate, climate = CLIMATES[climateKey];
+    const year = new Date().getFullYear() - 1;
+    const requestKey = `${climateKey}:${climate.lat}:${climate.lon}:${year}`;
+    if (!force && P.weatherProfile && P.weatherProfile.climate === climateKey && P.weatherProfile.year === year) return;
+    if (weatherRequestKey === requestKey) return;
+    const requestId = ++weatherRequestId;
+    weatherRequestKey = null;
+    if (!Number.isFinite(climate.lat) || !Number.isFinite(climate.lon)) {
+      P.weatherProfile = null;
+      update();
+      renderWeatherStatus('Open-Meteo location coordinates are unavailable; using built-in climate normals.', 'warning');
+      return;
+    }
+    weatherRequestKey = requestKey;
+    const url = new URL('https://archive-api.open-meteo.com/v1/archive');
+    url.search = new URLSearchParams({
+      latitude: climate.lat,
+      longitude: climate.lon,
+      start_date: `${year}-01-01`,
+      end_date: `${year}-12-31`,
+      hourly: 'temperature_2m',
+      timezone: 'auto',
+    }).toString();
+    const hadProfile = P.weatherProfile && P.weatherProfile.climate === climateKey;
+    if (hadProfile) {
+      P.weatherProfile = null;
+      update();
+    }
+    renderWeatherStatus(`Loading Open-Meteo hourly temperatures for ${climate.name} (${year})…`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) throw new Error(`Open-Meteo returned HTTP ${response.status}`);
+      const data = await response.json();
+      const times = data.hourly && data.hourly.time;
+      const values = data.hourly && data.hourly.temperature_2m;
+      if (!Array.isArray(times) || !Array.isArray(values) || times.length !== values.length) {
+        throw new Error('The response did not contain hourly temperatures.');
+      }
+      const sums = Array.from({ length: 12 }, () => new Array(24).fill(0));
+      const counts = Array.from({ length: 12 }, () => new Array(24).fill(0));
+      times.forEach((timestamp, i) => {
+        const monthIndex = Number(timestamp.slice(5, 7)) - 1;
+        const hour = Number(timestamp.slice(11, 13));
+        if (monthIndex >= 0 && monthIndex < 12 && hour >= 0 && hour < 24 && Number.isFinite(values[i])) {
+          sums[monthIndex][hour] += values[i];
+          counts[monthIndex][hour]++;
+        }
+      });
+      if (counts.some((monthCounts) => monthCounts.some((count) => count === 0))) {
+        throw new Error('The response did not include valid temperatures for every hour of all 12 months.');
+      }
+      if (requestId !== weatherRequestId || P.climate !== climateKey) return;
+      const hourly = sums.map((monthSums, m) => monthSums.map((sum, h) => sum / counts[m][h]));
+      const mean = sums.map((monthSums, m) =>
+        monthSums.reduce((sum, value) => sum + value, 0) /
+        counts[m].reduce((sum, count) => sum + count, 0)
+      );
+      P.weatherProfile = { climate: climateKey, year, mean, hourly };
+      month = P.weatherProfile.mean.indexOf(Math.min(...P.weatherProfile.mean));
+      renderWeatherStatus(`Using Open-Meteo hourly averages for ${year}.`, 'success');
+      update();
+    } catch (error) {
+      if (requestId !== weatherRequestId || P.climate !== climateKey) return;
+      P.weatherProfile = null;
+      update();
+      renderWeatherStatus(`Open-Meteo unavailable (${error.message}); using built-in climate normals.`, 'warning');
+    } finally {
+      clearTimeout(timeout);
+      if (requestId === weatherRequestId) weatherRequestKey = null;
+    }
   }
 
   function renderVerdict() {
@@ -1124,8 +1220,10 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
       if (!r.ok) return;
       const c = await r.json();
       const errs = applyConfig(c, !location.hash.includes('s='));
-      if (c.defaults && !location.hash.includes('s=')) applyScenario(c.defaults);
+      const scenarioApplied = c.defaults && !location.hash.includes('s=');
+      if (scenarioApplied) applyScenario(c.defaults);
       refreshAfterConfig();
+      if (!scenarioApplied) fetchWeatherProfile(true);
       if (errs.length) console.warn('custom.json:', errs);
     } catch (e) { /* no custom.json, or opened from file:// */ }
   }
@@ -1249,7 +1347,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
   function scenSave() {
     const name = $('#scenName').value.trim() || `${CLIMATES[P.climate].name} · ${FACILITIES[P.facility].name}`;
     const d = defaults(), v = {};
-    for (const k in P) if (k[0] !== '_' && k !== 'extras' && JSON.stringify(P[k]) !== JSON.stringify(d[k])) v[k] = P[k];
+    for (const k in P) if (k[0] !== '_' && k !== 'extras' && k !== 'weatherProfile' && JSON.stringify(P[k]) !== JSON.stringify(d[k])) v[k] = P[k];
     CFG.scenarios.push({ n: name, v }); $('#scenName').value = '';
     saveCfg(); buildPresets(); markPresets(); renderScen(); toast(`Saved "${name}"`);
   }
@@ -1266,7 +1364,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
   }
   function cfgExport() {
     const d = defaults(), v = {};
-    for (const k in P) if (k[0] !== '_' && k !== 'extras' && JSON.stringify(P[k]) !== JSON.stringify(d[k])) v[k] = P[k];
+    for (const k in P) if (k[0] !== '_' && k !== 'extras' && k !== 'weatherProfile' && JSON.stringify(P[k]) !== JSON.stringify(d[k])) v[k] = P[k];
     const out = { version: 1, about: 'PhaseFarm customization. Place next to index.html to load for every visitor.', defaults: v, ...CFG, extras: P.extras || [] };
     download('custom.json', JSON.stringify(out, null, 2), 'application/json');
   }
@@ -1277,6 +1375,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
       const errs = applyConfig(c, true);
       if (c.defaults) applyScenario(c.defaults);
       saveCfg(); refreshAfterConfig();
+      if (!c.defaults) fetchWeatherProfile(true);
       $('#cfgMsg').className = 'small ' + (errs.length ? 'err' : 'ok');
       $('#cfgMsg').textContent = errs.length ? 'Imported with problems:\n' + errs.join('\n') : 'Imported.';
     } catch (err) { $('#cfgMsg').className = 'small err'; $('#cfgMsg').textContent = 'Could not read JSON: ' + err.message; }
@@ -1284,7 +1383,8 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
   }
   function cfgReset() {
     try { localStorage.removeItem(CFG_KEY); } catch (e) { /* ignore */ }
-    applyConfig({}, false); P.extras = []; refreshAfterConfig(); fetchSiteConfig();
+    applyConfig({}, false); P.extras = []; refreshAfterConfig();
+    fetchSiteConfig().then(() => fetchWeatherProfile(true));
     $('#cfgMsg').className = 'small ok'; $('#cfgMsg').textContent = 'Customizations cleared (site custom.json, if any, reloaded).';
   }
 
@@ -1325,8 +1425,8 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
       ['U_glaz', `${P.Uglaz}[W/(m^2*K)]`, 'Glazing U-value (baseline)'],
       ['T_lo', `${P.lo}[degC]`, 'Crop band low setpoint'],
       ['T_hi', `${P.hi}[degC]`, 'Crop band high setpoint'],
-      ['T_out_mean', `${(clim.mean[month] + P.tempOffset).toFixed(2)}[degC]`, `Mean outdoor temp, ${MONTHS[month]}, ${clim.name}`],
-      ['T_out_amp', `${amp}[K]`, 'Diurnal half-amplitude; T_out = T_out_mean + T_out_amp*cos(2*pi*(t/1[h]-15)/24)'],
+      ['T_out_mean', `${(PF.climateMean(P, month) + P.tempOffset).toFixed(2)}[degC]`, `Mean outdoor temp, ${MONTHS[month]}, ${clim.name}`],
+      ['T_out_amp', `${amp}[K]`, 'Built-in diurnal half-amplitude; use weather.csv for the hourly outdoor temperature profile'],
       ['G_day', `${clim.ghi[month]}[kW*h/m^2]`, 'Daily global horizontal irradiation'],
       ['day_len', `${PF.dayLength(clim.lat, month).toFixed(2)}[h]`, 'Day length'],
       ['tau_glaz', `${P.tau}`, 'Glazing solar transmittance'],
@@ -1340,16 +1440,18 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
       ['C_room', `${(tp.Cin / 1e6).toFixed(2)}[MJ/K]`, 'PhaseFarm lumped indoor heat capacity'],
       ['q_lights', `${(P.lightW * 0.75).toFixed(1)}[W/m^2]`, 'Sensible grow-light gain per m2 floor'],
     ];
-    const head = `# PhaseFarm → COMSOL parameters (${CLIMATES[P.climate].name}, ${FACILITIES[P.facility].name}, ${MONTHS[month]})\n# Global Definitions > Parameters > Load from File. Columns: name, expression, description\n`;
+    const source = P.weatherProfile && P.weatherProfile.climate === P.climate
+      ? `Open-Meteo archive (${P.weatherProfile.year})`
+      : 'built-in climate normals';
+    const head = `# PhaseFarm → COMSOL parameters (${CLIMATES[P.climate].name}, ${FACILITIES[P.facility].name}, ${MONTHS[month]})\n# Outdoor temperature source: ${source}\n# Global Definitions > Parameters > Load from File. Columns: name, expression, description\n`;
     download(`phasefarm_parameters_${P.climate}_${MONTHS[month]}.txt`, head + rows.map((r) => `${r[0]}\t${r[1]}\t"${r[2]}"`).join('\n') + '\n');
   }
   function weatherRows(m, days) {
-    const clim = CLIMATES[P.climate], amp = Array.isArray(clim.amp) ? clim.amp[m] : clim.amp;
-    const mean = clim.mean[m] + P.tempOffset, D = PF.dayLength(clim.lat, m), G = clim.ghi[m];
+    const clim = CLIMATES[P.climate], D = PF.dayLength(clim.lat, m), G = clim.ghi[m];
     const rows = [];
     for (let i = 0; i <= days * 24 * 4; i++) {
       const t = i / 4, h = t % 24;
-      const T = mean + amp * Math.cos(2 * Math.PI * (h - 15) / 24);
+      const T = PF.climateTempAt(P, m, t) + P.tempOffset;
       const sr = 12 - D / 2, ss = 12 + D / 2;
       const I = h > sr && h < ss ? G * 1000 * Math.PI / (2 * D) * Math.sin(Math.PI * (h - sr) / D) : 0;
       rows.push([t * 3600, T, I]);
@@ -1357,7 +1459,10 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
     return rows;
   }
   function comsolWeather(year) {
-    let csv = '% PhaseFarm weather. Columns: time [s], T_out [degC], GHI [W/m^2]. Import as Interpolation function (3 columns, 2 functions).\n';
+    const source = P.weatherProfile && P.weatherProfile.climate === P.climate
+      ? `Open-Meteo archive (${P.weatherProfile.year})`
+      : 'built-in climate normals';
+    let csv = `% PhaseFarm weather (${source}). Columns: time [s], T_out [degC], GHI [W/m^2]. Import as Interpolation function (3 columns, 2 functions).\n`;
     if (!year) csv += weatherRows(month, 3).map((r) => r.map((x) => x.toFixed(3)).join(',')).join('\n');
     else {
       let t0 = 0; const out = [];
@@ -1438,14 +1543,15 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
     $('#form').addEventListener('input', onInput);
     $('#form').addEventListener('change', onInput);
     initCustomize(); initComsolTools(); renderNotes(); initMethod(); renderMethod(); initGlossary(); initCalc(); buildMonthChips(); initComsol(); initScan(); initTheme(); renderRef();
-    month = PF.CLIMATES[P.climate].mean.indexOf(Math.min(...PF.CLIMATES[P.climate].mean));
+    const means = Array.from({ length: 12 }, (_, m) => PF.climateMean(P, m));
+    month = means.indexOf(Math.min(...means));
     syncForm(); markPresets(); update();
     $('#btnOpt').onclick = runOptimizer;
     $('#btnPaths').onclick = runPaths;
-    $('#btnReset').onclick = () => { P = defaults(); syncForm(); markPresets(); update(); };
+    $('#btnReset').onclick = () => { P = defaults(); syncForm(); markPresets(); update(); fetchWeatherProfile(true); };
     $('#btnShare').onclick = async () => { saveHash(); try { await navigator.clipboard.writeText(location.href); toast('Link copied to clipboard'); } catch (e) { toast('Copy the URL from the address bar'); } };
     $('#btnCsv').onclick = exportCsv;
-    fetchSiteConfig();
+    fetchSiteConfig().then(() => fetchWeatherProfile(false));
     let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { renderPriceMap(); renderDesignMap(null); }, 150); });
   }
   boot();
