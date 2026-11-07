@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhaseFarm — PCM Cost Explorer</title>
+<meta name="description" content="Can phase change materials beat traditional insulation on total cost for hydroponic farms? Simulate, compare and find break-even scenarios.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M9 22c0-7 5-12 14-12-1 8-6 13-14 12z' fill='%23a7f3d0'/%3E%3C/svg%3E">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--brand)"/><path d="M9 22c0-7 5-12 14-12-1 8-6 13-14 12z" fill="var(--brand-soft)"/></svg>
+    <div><strong>PhaseFarm</strong><span>PCM vs insulation cost explorer for hydroponics</span></div>
+  </div>
+  <nav class="nav">
+    <a href="#results">Compare</a>
+    <a href="#thermal">Thermal model</a>
+    <a href="#maps">Break-even</a>
+    <a href="#paths">Paths to a win</a>
+    <a href="#scan">Where PCM wins</a>
+    <a href="#comsol">COMSOL</a>
+    <a href="#notes">Notes</a>
+    <a href="#method">Method</a>
+    <a href="#glossary">Glossary</a>
+  </nav>
+  <div class="actions">
+    <button class="btn" id="btnCustomize" title="Add your own data, cost items, notes and scenarios">Customize</button>
+    <button class="btn ghost" id="btnShare" title="Copy a link with these inputs">Share</button>
+    <button class="btn ghost" id="btnCsv" title="Download results as CSV">CSV</button>
+    <button class="btn ghost icon" id="btnTheme" title="Toggle theme" aria-label="Toggle theme">◐</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="presets">
+      <span class="label">Quick scenarios</span>
+      <div class="chips" id="presetChips"></div>
+    </div>
+    <form id="form" autocomplete="off"></form>
+    <button class="btn ghost full" type="button" id="btnReset">Reset to defaults</button>
+  </aside>
+
+  <main class="main">
+    <section class="hero" id="verdict"></section>
+
+    <section id="results" class="card">
+      <div class="card-head">
+        <h2>Strategy comparison</h2>
+        <p class="muted" id="horizonNote"></p>
+      </div>
+      <div class="strategies" id="strategyCards"></div>
+      <div class="grid2">
+        <div class="chart-box"><h3>Cumulative discounted cost</h3><div class="cwrap"><canvas id="chCum"></canvas></div></div>
+        <div class="chart-box"><h3>Life-cycle cost breakdown</h3><div class="cwrap"><canvas id="chBreak"></canvas></div></div>
+      </div>
+      <div class="table-wrap"><table class="data" id="detailTable"></table></div>
+      <details class="more calc" id="calcBox">
+        <summary>Show the exact cost calculation (with your numbers)</summary>
+        <div class="toolbar" style="margin-top:12px"><div class="chips" id="calcChips"></div></div>
+        <div id="calcBody"></div>
+      </details>
+    </section>
+
+    <section id="thermal" class="card">
+      <div class="card-head">
+        <h2>Thermal model — representative day</h2>
+        <p class="muted">A lumped "COMSOL-lite" model: indoor air + nutrient water + structure, with an enthalpy-method PCM layer. HVAC holds the crop band; PCM absorbs surplus heat and gives it back later.</p>
+      </div>
+      <div class="toolbar">
+        <div class="chips" id="monthChips"></div>
+        <label class="inline">Compare
+          <select id="pairSel">
+            <option value="base|pcm">Baseline vs Baseline + PCM</option>
+            <option value="trad|hybrid">Upgraded vs Upgraded + PCM</option>
+            <option value="base|trad">Baseline vs Upgraded insulation</option>
+          </select>
+        </label>
+      </div>
+      <div class="chart-box"><h3>Temperatures <span class="muted small" style="font-weight:400">· click a legend item to hide or show it</span></h3><div class="cwrap tall"><canvas id="chTemp"></canvas></div></div>
+      <div class="chart-box"><h3>HVAC load &amp; PCM melt fraction</h3><div class="cwrap"><canvas id="chLoad"></canvas></div></div>
+      <div class="dayStats" id="dayStats"></div>
+      <div class="chart-box"><h3>Monthly HVAC energy purchased</h3><div class="cwrap short"><canvas id="chMonthly"></canvas></div></div>
+
+    </section>
+
+    <section id="comsol" class="card">
+      <div class="card-head">
+        <h2>COMSOL Multiphysics® integration</h2>
+        <p class="muted">PhaseFarm handles quick screening and economics. COMSOL handles high-fidelity physics: 2D/3D conduction through real wall assemblies, thermal bridges, convection and the PCM melt front. Use the steps below to pass data in both directions.</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <span class="num">1</span><h3>Export to COMSOL</h3>
+          <p class="muted small">A parameter file (Global Definitions → Parameters → Load from File) and an outdoor weather table (Definitions → Functions → Interpolation) for the selected month.</p>
+          <div class="row">
+            <button class="btn ghost" type="button" id="btnParams">parameters.txt</button>
+            <button class="btn ghost" type="button" id="btnWeather">weather.csv</button>
+            <button class="btn ghost" type="button" id="btnWeatherYear">weather_year.csv</button>
+          </div>
+        </div>
+        <div class="step">
+          <span class="num">2</span><h3>Compare &amp; calibrate</h3>
+          <p class="muted small">Import a COMSOL indoor-temperature probe (time, T) to overlay it on the thermal chart. Calibration then fits this model's PCM film coefficient and thermal-mass multiplier to your COMSOL curve.</p>
+          <div class="row">
+            <label class="btn ghost file">Import temperature CSV<input type="file" id="comsolFile" accept=".csv,.txt" hidden></label>
+            <button class="btn ghost" type="button" id="btnCalib">Calibrate</button>
+            <button class="btn ghost" type="button" id="comsolClear">Clear</button>
+          </div>
+          <label class="toggle small"><input type="checkbox" id="ffMode" checked> COMSOL run is free-floating (no HVAC)</label>
+          <span class="muted small" id="comsolStat"></span>
+        </div>
+        <div class="step">
+          <span class="num">3</span><h3>Drive costs with COMSOL loads</h3>
+          <p class="muted small">Import daily heating/cooling loads per strategy and month from COMSOL. The economics then use your COMSOL numbers in place of the built-in model's. <a href="comsol/comsol_loads_template.csv" download>Template</a></p>
+          <div class="row">
+            <label class="btn ghost file">Import loads CSV<input type="file" id="loadsFile" accept=".csv,.txt" hidden></label>
+            <label class="toggle"><input type="checkbox" id="useLoads" disabled> Use COMSOL loads</label>
+          </div>
+          <span class="muted small" id="loadsStat"></span>
+        </div>
+      </div>
+      <details class="more">
+        <summary>Which COMSOL capabilities fit this problem?</summary>
+        <div class="grid2 prose">
+          <ul>
+            <li><b>Heat Transfer Module:</b> the <i>Phase Change Material</i> domain feature (apparent heat capacity), layered walls, thermal bridges (see the slide example), surface-to-surface radiation and solar irradiation.</li>
+            <li><b>CFD Module (non-isothermal flow):</b> greenhouse air circulation, vent opening, airflow over PCM panels. Use it to replace the assumed film coefficient h.</li>
+            <li><b>Packed-bed latent heat storage:</b> hot water over paraffin capsules (from the slides), applied here as a PCM tank on the nutrient-water loop.</li>
+          </ul>
+          <ul>
+            <li><b>Parametric / optimization studies:</b> sweep PCM thickness, melt temperature and position, mirroring the optimizer here, then import the results (step 3).</li>
+            <li><b>LiveLink™ for MATLAB® or the MPh Python package:</b> script whole sweeps. See <a href="comsol/run_comsol_sweep.py" download>run_comsol_sweep.py</a>.</li>
+            <li><b>Application Builder + COMSOL Compiler™:</b> wrap the wall model in a standalone app for judges and growers.</li>
+          </ul>
+        </div>
+      </details>
+    </section>
+
+    <section id="maps" class="card">
+      <div class="card-head">
+        <h2>Break-even maps</h2>
+        <p class="muted">Green = the best PCM option has lower life-cycle cost than the best non-PCM option. The white line is break-even; ● marks your current inputs. Click a cell to apply it.</p>
+      </div>
+      <div class="grid2">
+        <div class="chart-box">
+          <h3>PCM price × energy price</h3>
+          <div class="heat"><canvas id="hmPrice"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <h3>PCM design optimizer: melt point × quantity</h3>
+          <div class="heat"><canvas id="hmDesign"></canvas></div>
+          <div class="row"><button class="btn" type="button" id="btnOpt">Run optimizer</button><span class="muted" id="optStat">Runs ~340 annual simulations in your browser.</span></div>
+        </div>
+      </div>
+      <div class="chart-box">
+        <h3>Sensitivity — what moves PCM savings most?</h3>
+        <div class="cwrap tall"><canvas id="chTornado"></canvas></div>
+      </div>
+    </section>
+
+    <section id="paths" class="card">
+      <div class="card-head">
+        <h2>Paths to a PCM win</h2>
+        <p class="muted">For your current scenario, test the real-world levers that could tip the balance toward PCM, one at a time and in combination. Each lever gets its own optimal melt point and quantity. Use it to see which conditions you'd need to argue for, and what to check with suppliers, utilities or COMSOL.</p>
+      </div>
+      <div class="row"><button class="btn" type="button" id="btnPaths">Find paths to a win</button><span class="muted" id="pathsStat">Runs ~500 annual simulations (a few seconds).</span></div>
+      <div class="table-wrap"><table class="data" id="pathsTable"></table></div>
+    </section>
+
+    <section id="scan" class="card">
+      <div class="card-head">
+        <h2>Where does PCM win?</h2>
+        <p class="muted">Scans every location × facility type with your economic, PCM and crop inputs, picks the best melt point for each, and ranks them by PCM savings versus the best traditional option.</p>
+      </div>
+      <div class="row"><button class="btn" type="button" id="btnScan">Run scenario scan</button><span class="muted" id="scanStat"></span></div>
+      <div class="table-wrap"><table class="data" id="scanTable"></table></div>
+    </section>
+
+    <section id="notes" class="card">
+      <div class="card-head row-between">
+        <div><h2>Team notes &amp; findings</h2><p class="muted">Your own sections: research, data sources, interview notes, pitch points. Edit them in <b>Customize → Notes</b>. Basic Markdown is supported.</p></div>
+      </div>
+      <div id="notesBody" class="notes"></div>
+    </section>
+
+    <section id="method" class="card prose">
+      <div class="row-between">
+        <div><h2>Method, assumptions and limits</h2><p class="muted">Edit any of this text, add your own sections, or add PCM materials you've found. Changes save in this browser and travel with <code>custom.json</code>.</p></div>
+        <button class="btn ghost" type="button" id="btnEditMethod">Edit</button>
+      </div>
+      <div id="methodBody" class="edit-area"></div>
+      <div class="row-between" style="margin-top:18px">
+        <h3>PCM materials</h3>
+        <button class="btn" type="button" id="btnAddPcm">+ Add a PCM</button>
+      </div>
+      <div id="pcmForm" class="edit-area" hidden></div>
+      <div class="table-wrap" style="margin-top:6px"><table class="data" id="refTable"></table></div>
+    </section>
+
+    <section id="glossary" class="card">
+      <div class="card-head">
+        <h2>Glossary</h2>
+        <p class="muted">Every term on this page, and whether you <b>enter</b> it or the model <b>calculates</b> it. Tip: hover over any sidebar label to see its definition.</p>
+      </div>
+      <div class="toolbar">
+        <input type="search" id="glossQ" placeholder="Search terms, e.g. COP, payback, melt…" aria-label="Search glossary">
+        <div class="chips" id="glossKinds"></div>
+      </div>
+      <div class="table-wrap"><table class="data gloss" id="glossTable"></table></div>
+    </section>
+  </main>
+</div>
+<div class="drawer-bg" id="drawerBg" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="Customize">
+  <div class="drawer-head">
+    <h2>Customize</h2>
+    <button class="btn ghost icon" type="button" id="drawerClose" aria-label="Close">✕</button>
+  </div>
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-tab="lib">Data library</button>
+    <button class="tab" data-tab="costs">Cost items</button>
+    <button class="tab" data-tab="notesT">Notes</button>
+    <button class="tab" data-tab="scen">Scenarios</button>
+    <button class="tab" data-tab="io">Import / export</button>
+  </div>
+  <div class="tabpane" data-pane="lib">
+    <p class="muted small">Add your own locations, facilities, PCM products or crops as JSON. Built-in entries stay. A custom entry with the same key as a built-in one replaces it.</p>
+    <div class="row">
+      <select id="libCat">
+        <option value="climates">Locations (climates)</option>
+        <option value="facilities">Facility types</option>
+        <option value="pcms">PCM materials</option>
+        <option value="crops">Crops</option>
+      </select>
+      <select id="libTpl"></select>
+      <button class="btn ghost" type="button" id="libCopy">Copy as new entry</button>
+    </div>
+    <textarea id="libText" spellcheck="false" rows="16"></textarea>
+    <div class="row"><button class="btn" type="button" id="libApply">Apply</button><span class="small" id="libMsg"></span></div>
+  </div>
+  <div class="tabpane" data-pane="costs" hidden>
+    <p class="muted small">Add costs or credits the model leaves out, such as grants (negative), PCM recycling, extra labour, a backup generator or insurance savings. They're included in life-cycle cost.</p>
+    <div id="extrasList"></div>
+    <button class="btn ghost" type="button" id="extraAdd">+ Add cost item</button>
+  </div>
+  <div class="tabpane" data-pane="notesT" hidden>
+    <p class="muted small">Sections appear in "Team notes &amp; findings". Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code>- lists</code>, <code>[links](https://…)</code>, <code>![images](https://…)</code>, <code>## headings</code>.</p>
+    <div id="notesList"></div>
+    <button class="btn ghost" type="button" id="noteAdd">+ Add section</button>
+  </div>
+  <div class="tabpane" data-pane="scen" hidden>
+    <p class="muted small">Save the current inputs as a quick-scenario chip in the sidebar.</p>
+    <div class="row"><input type="text" id="scenName" placeholder="Scenario name"><button class="btn" type="button" id="scenSave">Save current</button></div>
+    <div id="scenList"></div>
+  </div>
+  <div class="tabpane" data-pane="io" hidden>
+    <p class="muted small">Your customizations auto-save in this browser. To share them with your team or publish them with the site, export <code>custom.json</code> and put it next to <code>index.html</code>. It then loads for every visitor.</p>
+    <div class="row">
+      <button class="btn" type="button" id="cfgExport">Export custom.json</button>
+      <label class="btn ghost file">Import JSON<input type="file" id="cfgImport" accept=".json" hidden></label>
+      <button class="btn ghost" type="button" id="cfgReset">Clear my customizations</button>
+    </div>
+    <p class="small" id="cfgMsg"></p>
+  </div>
+</aside>
+<div class="toast" id="toast" role="status"></div>
+<div class="tip" id="tip"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="model.js"></script>
+<script src="glossary.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

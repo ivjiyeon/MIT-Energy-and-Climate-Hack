@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "about": "Example PhaseFarm customization. Rename to custom.json (next to index.html) to load it for every visitor.",
+  "defaults": { "climate": "anchorage", "facility": "greenhouse", "crop": "lettuce", "pcmType": "infinite_r" },
+  "library": {
+    "climates": {
+      "anchorage": {
+        "name": "Anchorage, USA (example)",
+        "lat": 61.2,
+        "amp": [3.5, 4, 4.5, 5, 5.5, 5, 4.5, 4.5, 4, 3.5, 3.5, 3.5],
+        "mean": [-8, -6.5, -3, 3, 8.5, 12.5, 14.5, 13.5, 9, 1.5, -5, -7.5],
+        "ghi": [0.3, 1.0, 2.3, 3.8, 4.8, 5.2, 4.8, 3.6, 2.3, 1.1, 0.4, 0.2]
+      }
+    },
+    "pcms": {
+      "infinite_r": {
+        "name": "Example vendor panel (salt hydrate, 23 °C)",
+        "L": 200, "rho": 1500, "k": 0.5, "cp": 2000, "price": 4.0, "life": 20
+      }
+    },
+    "crops": {
+      "microgreens": {
+        "name": "Microgreens (example)",
+        "lo": 18, "hi": 24, "critLo": 8, "critHi": 30, "yieldKg": 60, "price": 30, "cycle": 12
+      }
+    }
+  },
+  "extras": [
+    { "name": "State energy-efficiency grant (example)", "kind": "capex", "applies": "anyPcm", "amount": -15000, "perM2": false, "enabled": true },
+    { "name": "PCM panel inspection labour", "kind": "annual", "applies": "anyPcm", "amount": 0.3, "perM2": true, "enabled": true }
+  ],
+  "notes": [
+    { "title": "Why hydroponics?", "body": "- Less water than soil farming\n- No pesticides, year-round local food\n- **Energy is the #1 operating cost** after labour, which is where PCM can help" },
+    { "title": "Data sources", "body": "Climate normals: NOAA / NASA POWER (rounded).\nPCM prices: vendor quotes, 2024–25. Replace with your own." }
+  ],
+  "scenarios": [
+    { "n": "Anchorage microgreens", "v": { "climate": "anchorage", "crop": "microgreens", "lo": 18, "hi": 24, "critLo": 8, "critHi": 30, "yieldKg": 60, "cropPrice": 30, "cycle": 12 } }
+  ]
+}

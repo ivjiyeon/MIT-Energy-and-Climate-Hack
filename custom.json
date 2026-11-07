@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "about": "Site-wide PhaseFarm customization. Export from Customize > Import / export and replace this file. See docs/CUSTOMIZING.md.",
+  "library": {},
+  "extras": [],
+  "notes": [],
+  "scenarios": []
+}
