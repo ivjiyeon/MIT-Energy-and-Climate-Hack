@@ -160,11 +160,6 @@ details.comsol p { color: var(--muted); }
 details.more { margin-top: 14px; } details.more summary { cursor: pointer; font-weight: 600; }
 .row-between { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 
-/* Notes */
-.notes { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-.note { background: var(--surface-2); border-radius: 12px; padding: 14px 16px; }
-.note h3 { font-size: 15px; } .note img { max-width: 100%; border-radius: 8px; }
-.note p, .note ul { margin: 6px 0; } .note ul { padding-left: 18px; }
 .empty { color: var(--muted); border: 1px dashed var(--border); border-radius: 12px; padding: 16px; }
 
 /* Drawer */

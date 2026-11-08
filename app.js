@@ -112,7 +112,7 @@
     { n: '★ Boston + outage protection', v: { climate: 'boston', facility: 'greenhouse', crop: 'lettuce', pcmFan: true, pcmThick: 6, pcmKg: 20, pcmMelt: 24, includeOutage: true, outagesPerYear: 1, outageHours: 8 } },
   ];
 
-  let CFG = { library: {}, notes: [], scenarios: [], method: {} };
+  let CFG = { library: {}, scenarios: [], method: {} };
   const allPresets = () => PRESETS.concat(CFG.scenarios || []);
   let LOADS = null;
   let P = defaults();
@@ -1335,6 +1335,24 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
   };
   let methodEdit = false;
   const methodText = (k) => { const m = CFG.method || {}; return m[k] != null ? m[k] : METHOD_DEFAULT[k]; };
+  function md(src) {
+    const safeUrl = (u) => (/^(https?:|\.?\/|[\w.-]+\/|#|[\w.-]+\.(png|jpe?g|gif|svg|webp|pdf|md|html?)$)/i.test(u) && !/^javascript:/i.test(u) ? u : '#');
+    const inline = (t) => esc(t)
+      .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_, a, u) => `<img alt="${a}" src="${safeUrl(u)}">`)
+      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, a, u) => `<a href="${safeUrl(u)}" target="_blank" rel="noopener">${a}</a>`)
+      .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\*([^*]+)\*/g, '<i>$1</i>').replace(/`([^`]+)`/g, '<code>$1</code>');
+    const out = []; let list = null;
+    for (const line of String(src || '').split('\n')) {
+      const l = line.trim();
+      if (/^[-*] /.test(l)) { if (!list) { list = []; } list.push(`<li>${inline(l.slice(2))}</li>`); continue; }
+      if (list) { out.push(`<ul>${list.join('')}</ul>`); list = null; }
+      if (!l) continue;
+      const h = l.match(/^(#{1,4}) (.*)/);
+      out.push(h ? `<h4>${inline(h[2])}</h4>` : `<p>${inline(l)}</p>`);
+    }
+    if (list) out.push(`<ul>${list.join('')}</ul>`);
+    return out.join('');
+  }
   function renderMethod() {
     CFG.method = CFG.method || {};
     const extra = CFG.method.extra || [];
@@ -1516,13 +1534,13 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
     };
   }
 
-  // ---------- Config persistence (custom library, notes, scenarios, cost items) ----------
+  // ---------- Config persistence (custom library, scenarios, cost items) ----------
   const CFG_KEY = 'pf-config';
   function saveCfg() {
     try { localStorage.setItem(CFG_KEY, JSON.stringify({ ...CFG, extras: P.extras || [] })); } catch (e) { /* storage blocked */ }
   }
   function applyConfig(cfg, takeExtras) {
-    CFG = { library: cfg.library || {}, notes: cfg.notes || [], scenarios: cfg.scenarios || [], method: cfg.method || {} };
+    CFG = { library: cfg.library || {}, scenarios: cfg.scenarios || [], method: cfg.method || {} };
     const errs = PF.registerLibrary(CFG.library);
     if (takeExtras && Array.isArray(cfg.extras)) P.extras = cfg.extras;
     return errs;
@@ -1565,7 +1583,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
     syncFootprint(P);
   }
   function refreshAfterConfig() {
-    sanitize(); buildForm(); buildPresets(); syncForm(); markPresets(); renderNotes(); renderMethod(); update();
+    sanitize(); buildForm(); buildPresets(); syncForm(); markPresets(); renderMethod(); update();
     if (!$('#drawer').hidden) renderDrawer();
   }
 
@@ -1581,7 +1599,6 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
     document.querySelectorAll('.tabpane').forEach((p) => (p.hidden = p.dataset.pane !== tab));
     if (tab === 'lib') renderLib();
     if (tab === 'costs') renderExtras();
-    if (tab === 'notesT') renderNotesEditor();
     if (tab === 'scen') renderScen();
   }
   function renderLib() {
@@ -1631,44 +1648,6 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
     else if (f) { const t = e.target; P.extras[i][f] = t.type === 'checkbox' ? t.checked : t.type === 'number' ? parseFloat(t.value) || 0 : t.value; }
     else return;
     P.extras = [...P.extras]; saveCfg(); schedule();
-  }
-
-  function renderNotesEditor() {
-    $('#notesList').innerHTML = (CFG.notes || []).map((n, i) => `<div class="item" data-i="${i}">
-      <label>Title<input type="text" data-f="title" value="${esc(n.title)}"></label>
-      <label>Content (Markdown)<textarea data-f="body" rows="6">${esc(n.body)}</textarea></label>
-      <button type="button" class="btn ghost del">Delete</button></div>`).join('') || '<p class="empty">No sections yet.</p>';
-  }
-  function onNotesEdit(e) {
-    const it = e.target.closest('.item'); if (!it) return;
-    const i = +it.dataset.i, f = e.target.dataset.f;
-    if (e.target.classList.contains('del')) { CFG.notes.splice(i, 1); renderNotesEditor(); }
-    else if (f) CFG.notes[i][f] = e.target.value; else return;
-    saveCfg(); renderNotes();
-  }
-  function md(src) {
-    const safeUrl = (u) => (/^(https?:|\.?\/|[\w.-]+\/|#|[\w.-]+\.(png|jpe?g|gif|svg|webp|pdf|md|html?)$)/i.test(u) && !/^javascript:/i.test(u) ? u : '#');
-    const inline = (t) => esc(t)
-      .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_, a, u) => `<img alt="${a}" src="${safeUrl(u)}">`)
-      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, a, u) => `<a href="${safeUrl(u)}" target="_blank" rel="noopener">${a}</a>`)
-      .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\*([^*]+)\*/g, '<i>$1</i>').replace(/`([^`]+)`/g, '<code>$1</code>');
-    const out = []; let list = null;
-    for (const line of String(src || '').split('\n')) {
-      const l = line.trim();
-      if (/^[-*] /.test(l)) { if (!list) { list = []; } list.push(`<li>${inline(l.slice(2))}</li>`); continue; }
-      if (list) { out.push(`<ul>${list.join('')}</ul>`); list = null; }
-      if (!l) continue;
-      const h = l.match(/^(#{1,4}) (.*)/);
-      out.push(h ? `<h4>${inline(h[2])}</h4>` : `<p>${inline(l)}</p>`);
-    }
-    if (list) out.push(`<ul>${list.join('')}</ul>`);
-    return out.join('');
-  }
-  function renderNotes() {
-    const n = CFG.notes || [];
-    $('#notesBody').innerHTML = n.length
-      ? n.map((x) => `<article class="note"><h3>${esc(x.title || 'Untitled')}</h3>${md(x.body)}</article>`).join('')
-      : '<p class="empty">No notes yet. Open <b>Customize → Notes</b> to add research, data sources or pitch points.</p>';
   }
 
   function renderScen() {
@@ -1726,8 +1705,6 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
     $('#libCat').onchange = renderLib; $('#libCopy').onclick = libCopy; $('#libApply').onclick = libApply;
     $('#extraAdd').onclick = () => { P.extras = [...(P.extras || []), { name: 'New cost item', kind: 'capex', applies: 'anyPcm', amount: 0, perM2: false, enabled: true }]; renderExtras(); saveCfg(); };
     $('#extrasList').addEventListener('input', onExtrasEdit); $('#extrasList').addEventListener('change', onExtrasEdit); $('#extrasList').addEventListener('click', (e) => { if (e.target.classList.contains('del')) onExtrasEdit(e); });
-    $('#noteAdd').onclick = () => { CFG.notes.push({ title: 'New section', body: '' }); saveCfg(); renderNotesEditor(); renderNotes(); };
-    $('#notesList').addEventListener('input', onNotesEdit); $('#notesList').addEventListener('click', (e) => { if (e.target.classList.contains('del')) onNotesEdit(e); });
     $('#scenSave').onclick = scenSave; $('#scenList').onclick = onScenClick;
     $('#cfgExport').onclick = cfgExport; $('#cfgImport').onchange = cfgImport; $('#cfgReset').onclick = cfgReset;
   }
@@ -2118,7 +2095,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
     buildForm(); buildPresets();
     $('#form').addEventListener('input', onInput);
     $('#form').addEventListener('change', onInput);
-    initCustomize(); initComsolTools(); renderNotes(); initMethod(); renderMethod(); initGlossary(); initCalc(); initPayback(); buildMonthChips(); initComsol(); initScan(); initTheme(); renderRef();
+    initCustomize(); initComsolTools(); initMethod(); renderMethod(); initGlossary(); initCalc(); initPayback(); buildMonthChips(); initComsol(); initScan(); initTheme(); renderRef();
     const means = Array.from({ length: 12 }, (_, m) => PF.climateMean(P, m));
     month = means.indexOf(Math.min(...means));
     syncForm(); markPresets(); update();

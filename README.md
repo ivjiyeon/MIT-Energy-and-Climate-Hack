@@ -90,7 +90,7 @@ site/                          ← this folder: the website (deploy it as-is)
 | [User guide](docs/USER_GUIDE.md) | Anyone using the site: every section and input explained |
 | [Methodology](docs/METHODOLOGY.md) | Equations, assumptions, limits, default values and sources |
 | [Glossary](docs/GLOSSARY.md) | Every term, marked as input, preset, data library, calculated or concept (also searchable in the app) |
-| [Customizing](docs/CUSTOMIZING.md) | Adding data, cost items, notes and scenarios, in the app or in code |
+| [Customizing](docs/CUSTOMIZING.md) | Adding data, cost items and scenarios, in the app or in code |
 | [COMSOL guide](docs/COMSOL_GUIDE.md) | Building the matching COMSOL model and the two-way data flow |
 | [Hosting](docs/HOSTING.md) | Free deployment on Netlify, GitHub Pages or Cloudflare Pages |
 | [Where PCM wins](docs/WHERE_PCM_WINS.md) | The lever study: which conditions make PCM beat insulation, with full results tables |

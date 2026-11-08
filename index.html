@@ -24,12 +24,11 @@
     <a href="#paths">Paths to a win</a>
     <a href="#scan">Where PCM wins</a>
     <a href="#comsol">COMSOL</a>
-    <a href="#notes">Notes</a>
     <a href="#method">Method</a>
     <a href="#glossary">Glossary</a>
   </nav>
   <div class="actions">
-    <button class="btn" id="btnCustomize" title="Add your own data, cost items, notes and scenarios">Customize</button>
+    <button class="btn" id="btnCustomize" title="Add your own data, cost items and scenarios">Customize</button>
     <button class="btn ghost" id="btnShare" title="Copy a link with these inputs">Share</button>
     <button class="btn ghost" id="btnCsv" title="Download results as CSV">CSV</button>
     <button class="btn ghost icon" id="btnTheme" title="Toggle theme" aria-label="Toggle theme">◐</button>
@@ -124,7 +123,7 @@
 
     <section id="electricity" class="card">
       <div class="card-head">
-        <h2>Monthly electricity use comparison</h2>
+        <h2>Electricity use comparison</h2>
         <p class="muted">Compare average hourly electricity use for Base, Hybrid PCM, and Full PCM using the supplied 2025 comparison data.</p>
       </div>
       <div class="toolbar">
@@ -260,13 +259,6 @@
       <div class="table-wrap"><table class="data" id="scanTable"></table></div>
     </section>
 
-    <section id="notes" class="card">
-      <div class="card-head row-between">
-        <div><h2>Team notes &amp; findings</h2><p class="muted">Your own sections: research, data sources, interview notes, pitch points. Edit them in <b>Customize → Notes</b>. Basic Markdown is supported.</p></div>
-      </div>
-      <div id="notesBody" class="notes"></div>
-    </section>
-
     <section id="method" class="card prose">
       <div class="row-between">
         <div><h2>Method, assumptions and limits</h2><p class="muted">Edit any of this text, add your own sections, or add PCM materials you've found. Changes save in this browser and travel with <code>custom.json</code>.</p></div>
@@ -304,7 +296,6 @@
   <div class="tabs" id="tabs">
     <button class="tab on" data-tab="lib">Data library</button>
     <button class="tab" data-tab="costs">Cost items</button>
-    <button class="tab" data-tab="notesT">Notes</button>
     <button class="tab" data-tab="scen">Scenarios</button>
     <button class="tab" data-tab="io">Import / export</button>
   </div>
@@ -328,11 +319,6 @@
     <div id="extrasList"></div>
     <button class="btn ghost" type="button" id="extraAdd">+ Add cost item</button>
   </div>
-  <div class="tabpane" data-pane="notesT" hidden>
-    <p class="muted small">Sections appear in "Team notes &amp; findings". Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code>- lists</code>, <code>[links](https://…)</code>, <code>![images](https://…)</code>, <code>## headings</code>.</p>
-    <div id="notesList"></div>
-    <button class="btn ghost" type="button" id="noteAdd">+ Add section</button>
-  </div>
   <div class="tabpane" data-pane="scen" hidden>
     <p class="muted small">Save the current inputs as a quick-scenario chip in the sidebar.</p>
     <div class="row"><input type="text" id="scenName" placeholder="Scenario name"><button class="btn" type="button" id="scenSave">Save current</button></div>
@@ -354,6 +340,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="model.js"></script>
 <script src="glossary.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
