@@ -11,7 +11,7 @@
       { k: 'climate', l: 'Location', t: 'select', o: () => opts(CLIMATES) },
       { k: 'facility', l: 'Facility type', t: 'select', o: () => opts(FACILITIES), h: 'Loads typical building values below.' },
       { k: 'crop', l: 'Crop', t: 'select', o: () => opts(CROPS), h: 'Sets the temperature band, critical limits and value.' },
-      { k: 'floorArea', l: 'Floor area', u: 'm²', t: 'number', min: 10, max: 100000, step: 10 },
+      { k: 'floorArea', l: 'Floor area', u: 'm²', t: 'number', min: 10, max: 100000, step: 0.1 },
       { k: 'tempOffset', l: 'Climate warming', u: '°C', t: 'range', min: -2, max: 4, step: 0.5, h: 'Shift all outdoor temperatures to test future climates.' },
     ] },
     { id: 'pcm', title: 'Phase change material', open: true, fields: [
@@ -31,28 +31,15 @@
       { k: 'prePower', l: 'Pre-charge power limit', u: 'W/m²', t: 'range', min: 5, max: 100, step: 5 },
     ] },
     { id: 'env', title: 'Building & insulation', open: false, fields: [
-      { k: 'height', l: 'Height', u: 'm', t: 'number', min: 2, max: 20, step: 0.1 },
-      { k: 'tiers', l: 'Growing tiers', u: '', t: 'number', min: 1, max: 20, step: 1 },
-      { k: 'glazedFrac', l: 'Glazed fraction of envelope', u: '', t: 'range', min: 0, max: 1, step: 0.05 },
-      { k: 'Uglaz', l: 'Glazing U — baseline', u: 'W/m²K', t: 'number', min: 0.5, max: 7, step: 0.1 },
-      { k: 'UglazUp', l: 'Glazing U — upgraded', u: 'W/m²K', t: 'number', min: 0.5, max: 7, step: 0.1 },
+      { k: 'width', l: 'Building width', u: 'm', t: 'number', min: 2, max: 200, step: 0.1, h: 'Together with length, determines floor area.' },
+      { k: 'length', l: 'Building length', u: 'm', t: 'number', min: 2, max: 500, step: 0.1, h: 'Together with width, determines floor area.' },
+      { k: 'height', l: 'Height / ridge height', u: 'm', t: 'number', min: 2, max: 20, step: 0.1, h: 'The model uses this as a rectangular thermal height; roof pitch and eave height are not represented.' },
       { k: 'R', l: 'Opaque insulation R — baseline', u: 'm²K/W', t: 'number', min: 0, max: 15, step: 0.1 },
-      { k: 'Rup', l: 'Opaque insulation R — upgraded', u: 'm²K/W', t: 'number', min: 0, max: 15, step: 0.1 },
-      { k: 'ach', l: 'Infiltration', u: 'ACH', t: 'number', min: 0, max: 5, step: 0.05 },
       { k: 'waterL', l: 'Nutrient water volume', u: 'L/m²', t: 'number', min: 0, max: 300, step: 5, h: 'Hydroponic reservoirs are a "free" thermal battery.' },
-      { k: 'lightW', l: 'Grow-light power', u: 'W/m² floor', t: 'number', min: 0, max: 600, step: 5 },
-      { k: 'lightH', l: 'Photoperiod', u: 'h/day', t: 'range', min: 0, max: 24, step: 1 },
-      { k: 'lightStart', l: 'Lights on at', u: 'h', t: 'range', min: 0, max: 23, step: 1, h: 'Running lights at night shifts load off-peak.' },
-      { k: 'econ', l: 'Free cooling with outside air (vents)', t: 'toggle' },
     ] },
     { id: 'crop', title: 'Crop', open: false, fields: [
       { k: 'lo', l: 'Band — low setpoint', u: '°C', t: 'number', min: 0, max: 35, step: 0.5 },
       { k: 'hi', l: 'Band — high setpoint', u: '°C', t: 'number', min: 0, max: 40, step: 0.5 },
-      { k: 'critLo', l: 'Critical low (crop damage)', u: '°C', t: 'number', min: -5, max: 30, step: 0.5 },
-      { k: 'critHi', l: 'Critical high (crop damage)', u: '°C', t: 'number', min: 20, max: 50, step: 0.5 },
-      { k: 'yieldKg', l: 'Yield', u: 'kg/m²·tier·yr', t: 'number', min: 0, max: 200, step: 1 },
-      { k: 'cropPrice', l: 'Wholesale price', u: '$/kg', t: 'number', min: 0, max: 100, step: 0.5 },
-      { k: 'cycle', l: 'Crop cycle', u: 'days', t: 'number', min: 7, max: 365, step: 1 },
     ] },
     { id: 'tariff', title: 'Energy & tariffs', open: false, fields: [
       { k: 'heating', l: 'Heating source', t: 'select', o: [['hp', 'Electric heat pump'], ['gas', 'Natural-gas boiler']] },
@@ -61,10 +48,6 @@
       { k: 'pricePeak', l: 'Electricity — on-peak', u: '$/kWh', t: 'number', min: 0, max: 2, step: 0.01, h: 'Fallback rates; the saved 2025 tariff overrides them unless a scenario explicitly uses fallback prices.' },
       { k: 'peakStart', l: 'Peak window start', u: 'h', t: 'range', min: 0, max: 23, step: 1 },
       { k: 'peakEnd', l: 'Peak window end', u: 'h', t: 'range', min: 0, max: 24, step: 1 },
-      { k: 'demandCharge', l: 'Demand charge', u: '$/kW·month', t: 'number', min: 0, max: 60, step: 0.5 },
-      { k: 'gasPrice', l: 'Natural gas', u: '$/therm', t: 'number', min: 0, max: 5, step: 0.05 },
-      { k: 'gridCO2', l: 'Grid carbon intensity', u: 'kg/kWh', t: 'number', min: 0, max: 1.2, step: 0.01 },
-      { k: 'carbonPrice', l: 'Carbon price', u: '$/t CO₂', t: 'number', min: 0, max: 300, step: 5 },
     ] },
     { id: 'fin', title: 'Finance & capital costs', open: false, fields: [
       { k: 'horizon', l: 'Analysis period', u: 'years', t: 'range', min: 5, max: 40, step: 1 },
@@ -124,12 +107,9 @@
     { n: 'Boston greenhouse', v: { climate: 'boston', facility: 'greenhouse', crop: 'lettuce' } },
     { n: 'Denver greenhouse', v: { climate: 'denver', facility: 'greenhouse', crop: 'tomato' } },
     { n: 'Nairobi greenhouse', v: { climate: 'nairobi', facility: 'greenhouse', crop: 'lettuce' } },
-    { n: 'Phoenix vertical farm', v: { climate: 'phoenix', facility: 'vertical', crop: 'basil' } },
-    { n: 'Oslo container farm', v: { climate: 'oslo', facility: 'container', crop: 'lettuce' } },
     { n: '★ Nairobi fan-assisted PCM', v: { climate: 'nairobi', facility: 'greenhouse', crop: 'lettuce', pcmFan: true, pcmThick: 6, pcmKg: 6, pcmMelt: 21 } },
     { n: '★ Off-grid Denver greenhouse', v: { climate: 'denver', facility: 'greenhouse', crop: 'lettuce', pcmFan: true, pcmThick: 6, pcmKg: 6, pcmMelt: 20.5, priceOff: 0.45, pricePeak: 0.45, demandCharge: 0 } },
     { n: '★ Boston + outage protection', v: { climate: 'boston', facility: 'greenhouse', crop: 'lettuce', pcmFan: true, pcmThick: 6, pcmKg: 20, pcmMelt: 24, includeOutage: true, outagesPerYear: 1, outageHours: 8 } },
-    { n: 'Pricey power + outages', v: { climate: 'denver', facility: 'greenhouse', crop: 'basil', priceOff: 0.28, pricePeak: 0.6, demandCharge: 30, includeOutage: true, outagesPerYear: 2, outageHours: 6, pcmPrice: 2.5, pcmType: 'salt' } },
   ];
 
   let CFG = { library: {}, notes: [], scenarios: [], method: {} };
@@ -308,7 +288,6 @@
     }
     const gas = P.heating === 'gas';
     document.getElementById('f_boilerEff').closest('.field').style.display = gas ? '' : 'none';
-    document.getElementById('f_gasPrice').closest('.field').style.display = gas ? '' : 'none';
     ['preHours', 'prePower'].forEach((k) => (document.getElementById('f_' + k).closest('.field').style.opacity = P.smart ? 1 : 0.45));
     ['fanH', 'fanW', 'fanCapex'].forEach((k) => (document.getElementById('f_' + k).closest('.field').style.display = P.pcmFan ? '' : 'none'));
     ['outagesPerYear', 'outageHours'].forEach((k) => (document.getElementById('f_' + k).closest('.field').style.opacity = P.includeOutage ? 1 : 0.45));
@@ -319,8 +298,19 @@
     const f = FIELD[k];
     let v = f.t === 'toggle' ? el.checked : f.t === 'select' ? el.value : parseFloat(el.value);
     if (f.t !== 'toggle' && f.t !== 'select' && !isFinite(v)) return;
+    const previousFloorArea = P.floorArea;
     P[k] = v;
-    if (k === 'facility' && e.type === 'change') { const fv = facilityVals(v); delete fv.name; Object.assign(P, fv); }
+    if (k === 'facility' && e.type === 'change') {
+      const fv = facilityVals(v); delete fv.name;
+      delete P.width; delete P.length;
+      Object.assign(P, fv);
+    }
+    if (k === 'floorArea' && P.width && P.length && previousFloorArea > 0) {
+      const scale = Math.sqrt(v / previousFloorArea);
+      P.width *= scale; P.length *= scale;
+    } else if ((k === 'width' || k === 'length') && P.width > 0 && P.length > 0) {
+      P.floorArea = P.width * P.length;
+    }
     if (k === 'crop' && e.type === 'change') Object.assign(P, cropVals(v));
     if (k === 'pcmType' && e.type === 'change') usePcm(v);
     if (k === 'climate' && e.type === 'change') {
@@ -370,7 +360,7 @@
 
   // ---------- Break-even helpers ----------
   function breakEvenPcmPrice(p, out) {
-    const nonL = Math.min(out.base.eco.lcc, out.trad.eco.lcc);
+    const nonL = out.base.eco.lcc;
     let best = null;
     for (const id of ['pcm', 'hybrid']) {
       const o = out[id];
@@ -384,7 +374,7 @@
   }
   function savingsAt(p, out, mult) {
     const e = (id) => PF.economics(p, out[id].s, out[id].sim, mult).lcc;
-    return Math.min(e('base'), e('trad')) - Math.min(e('pcm'), e('hybrid'));
+    return e('base') - Math.min(e('pcm'), e('hybrid'));
   }
   function breakEvenEnergy(p, out) {
     // savings is (nearly) piecewise-linear in energy multiplier; bisection on [0, 20]
@@ -405,12 +395,11 @@
     renderVerdict();
     renderCards();
     renderPayback();
-    renderCum();
+    renderAnnualOpex();
     renderBreak();
     renderDetail();
     renderCalc();
     renderDay();
-    renderMonthly();
     renderPriceMap();
     renderDesignMap(null);
     renderTornado();
@@ -523,8 +512,8 @@
     const where = `${FACILITIES[P.facility].name.toLowerCase()} in ${CLIMATES[P.climate].name}`;
     h.innerHTML = `<div>
       <h1>${win ? 'Yes, PCM lowers total cost' : 'Not yet, PCM costs more'} for a ${where}</h1>
-      <p>Over ${P.horizon} years, the best option is <b>${name}</b>. The best PCM option (${STRATEGIES.find((s) => s.id === v.bestPcm).name.replace(/^U/, 'u').replace(/^B/, 'b')})
-      ${win ? 'beats' : 'trails'} the best traditional option by <b>${money(Math.abs(v.savings))}</b>.
+      <p>Over ${P.horizon} years, the best option is <b>${name}</b>. The best PCM option (${STRATEGIES.find((s) => s.id === v.bestPcm).name})
+      ${win ? 'beats' : 'costs more than'} the Base option by <b>${money(Math.abs(v.savings))}</b>.
       ${win ? '' : ' <a href="#paths">See what would make PCM win →</a> '}${bePrice != null ? `PCM breaks even at <b>${bePrice > 0 ? '$' + bePrice.toFixed(2) + '/kg' : 'no price, not even free'}</b> (now $${P.pcmPrice}/kg)` : ''}${beE ? `, or with energy prices <b>${beE.toFixed(1)}×</b> today's` : ''}.</p>
       <div class="kpis">
         <div><b>${num(dE / 1000, 1)} MWh/yr</b>energy saved by PCM</div>
@@ -532,7 +521,7 @@
         <div><b>${num((nonS.eco.co2t - pcmS.eco.co2t), 1)} t/yr</b>CO₂ avoided</div>
         <div><b>${num(pcmS.sim.rideThrough, 1)} h vs ${num(nonS.sim.rideThrough, 1)} h</b>outage ride-through</div>
       </div></div>
-      <div class="big"><b class="${win ? 'pos' : 'neg'}">${win ? '+' : '−'}${money(Math.abs(v.savings)).replace('−', '')}</b><span>PCM life-cycle savings<br>vs best traditional option</span></div>`;
+      <div class="big"><b class="${win ? 'pos' : 'neg'}">${win ? '+' : '−'}${money(Math.abs(v.savings)).replace('−', '')}</b><span>PCM life-cycle savings<br>vs Base</span></div>`;
   }
 
   function renderCards() {
@@ -575,20 +564,6 @@
     charts[id] = new Chart(document.getElementById(id), cfg);
   }
 
-  function renderCum() {
-    const c = COLORS();
-    const years = R.base.eco.cum.map((_, i) => i);
-    upsert('chCum', {
-      type: 'line',
-      data: { labels: years, datasets: STRATEGIES.map((s) => ({ label: s.name, data: R[s.id].eco.cum, borderColor: c[s.id], backgroundColor: c[s.id], pointRadius: 0, borderWidth: 2.5, tension: 0.15 })) },
-      options: baseChartOpts({
-        scales: { x: { title: { display: true, text: 'Year', color: c.muted }, ticks: { color: c.muted }, grid: { color: c.border } },
-          y: { ticks: { color: c.muted, callback: (v) => money(v, 1) }, grid: { color: c.border } } },
-        plugins: { legend: { labels: { color: c.text, boxWidth: 12, usePointStyle: true } }, tooltip: { callbacks: { label: (x) => `${x.dataset.label}: ${money(x.raw)}` } } },
-      }),
-    });
-  }
-
   function pvParts(id) {
     const e = R[id].eco, r = P.discount / 100, esc = P.escalation / 100;
     let pvE = 0, pvD = 0, pvO = 0;
@@ -598,6 +573,39 @@
     }
     const repl = e.lcc - e.capex - pvE - pvD - pvO;
     return { pcm: e.pcmCapex, ins: e.insCapex, hvac: e.hvacCapex, energy: pvE, demand: pvD, other: pvO + repl };
+  }
+  function renderAnnualOpex() {
+    const c = COLORS();
+    const components = [
+      ['energyCost', 'Energy', '#0ea5e9'],
+      ['demandCost', 'Demand charges', '#6366f1'],
+      ['carbonCost', 'Carbon', '#f43f5e'],
+      ['maint', 'Maintenance', '#14b8a6'],
+      ['outageRisk', 'Outage risk', '#f59e0b'],
+      ['extraAnnual', 'Custom annual costs', '#8b5cf6'],
+    ];
+    upsert('chAnnualOpex', {
+      type: 'bar',
+      data: {
+        labels: STRATEGIES.map((s) => s.name),
+        datasets: components.map(([key, label, color]) => ({
+          label,
+          data: STRATEGIES.map((s) => R[s.id].eco[key]),
+          backgroundColor: color,
+          borderRadius: 3,
+        })),
+      },
+      options: baseChartOpts({
+        scales: {
+          x: { stacked: true, ticks: { color: c.muted }, grid: { display: false } },
+          y: { stacked: true, ticks: { color: c.muted, callback: (v) => money(v, 1) }, grid: { color: c.border } },
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: { color: c.text, boxWidth: 10, font: { size: 11 } } },
+          tooltip: { callbacks: { label: (x) => `${x.dataset.label}: ${money(x.raw)}` } },
+        },
+      }),
+    });
   }
   function renderBreak() {
     const c = COLORS();
@@ -716,9 +724,9 @@ LCC = ${usd(e.capex)} + Σ (present values in the table) = <b>${usd(e.lcc)}</b><
       <div class="eq">Annual operating (card) = Energy + Demand + Other, year 1            = ${usd(e.annualOpex)}
 Energy cost / kg crop   = (Energy + Demand) ÷ (floor × tiers × yield)    = ${usd(ED)} ÷ ${n0(e.annualYieldKg)} kg = $${e.costPerKg.toFixed(2)}/kg
 Payback                 = first year where this strategy's cumulative LCC ≤ Baseline's cumulative LCC
-PCM savings (verdict)   = min(LCC Baseline, LCC Upgraded) − min(LCC Baseline+PCM, LCC Upgraded+PCM)
-                        = ${usd(Math.min(R.base.eco.lcc, R.trad.eco.lcc))} − ${usd(Math.min(R.pcm.eco.lcc, R.hybrid.eco.lcc))} = ${money(R.verdict.savings)}
-Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best non-PCM LCC (LCC is linear in $/kg)</div>`;
+PCM savings (verdict)   = LCC Base − min(LCC Hybrid PCM, LCC Full PCM)
+= ${usd(R.base.eco.lcc)} − ${usd(Math.min(R.pcm.eco.lcc, R.hybrid.eco.lcc))} = ${money(R.verdict.savings)}
+Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC (LCC is linear in $/kg)</div>`;
   }
 
   // ---------- Thermal day ----------
@@ -766,45 +774,10 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
     upsert('chTemp', { type: 'line', data: { labels: hours, datasets: ds },
       options: baseChartOpts({ scales, plugins: { legend: { position: 'bottom', labels: { color: c.text, padding: 16, usePointStyle: true, pointStyleWidth: 26, font: { size: 12 }, filter: (i) => !i.text.startsWith('_'), sort: (x, y) => x.datasetIndex - y.datasetIndex } }, tooltip: { filter: (i) => !i.dataset.label.startsWith('_') && i.dataset.label !== 'Crop band', callbacks: { label: (x) => `${x.dataset.label}: ${(+x.parsed.y).toFixed(1)} °C` } } } }) });
 
-    const load = (hr) => hr.heatW.map((h, i) => (h - hr.coolW[i]) / 1000);
-    const lds = [
-      { type: 'bar', label: `HVAC: ${nameA}`, data: load(A), backgroundColor: c[a] + '99', borderRadius: 2 },
-      { type: 'bar', label: `HVAC: ${nameB}`, data: load(B), backgroundColor: c[b] + 'cc', borderRadius: 2 },
-    ];
-    if (pcmSide) lds.push({ type: 'line', label: 'PCM melted (%)', data: pcmSide.liq.map((x) => x * 100), borderColor: '#ea580c', backgroundColor: '#ea580c', yAxisID: 'y2', pointRadius: 0, borderWidth: 2.5 });
-    upsert('chLoad', { data: { labels: hours, datasets: lds },
-      options: baseChartOpts({ scales: {
-        x: { ticks: { color: c.muted, maxTicksLimit: 8 }, grid: { color: c.border } },
-        y: { title: { display: true, text: 'kW (+heat / −cool)', color: c.muted }, ticks: { color: c.muted }, grid: { color: c.border } },
-        y2: { position: 'right', min: 0, max: 100, display: !!pcmSide, title: { display: true, text: '% melted', color: c.muted }, ticks: { color: c.muted }, grid: { display: false } },
-      } }) });
-
-    const sum = (x) => x.reduce((s, v) => s + v, 0);
-    const kwhA = sum(A.elecKWh) + sum(A.gasKWh), kwhB = sum(B.elecKWh) + sum(B.gasKWh);
-    const cost = (hr) => hr.elecKWh.reduce((s, e, h) => {
-      const liveRate = P._tariffProfile && P._tariffProfile.hourly[month][h];
-      return s + e * (Number.isFinite(liveRate) ? liveRate : inPeak(h) ? P.pricePeak : P.priceOff);
-    }, 0) + sum(hr.gasKWh) * P.gasPrice / 29.31;
-    const pkA = Math.max(...A.heatW, ...A.coolW) / 1000, pkB = Math.max(...B.heatW, ...B.coolW) / 1000;
-    const onPk = (hr) => hr.elecKWh.reduce((s, e, h) => s + (inPeak(h) ? e : 0), 0);
-    $('#dayStats').innerHTML = `
-      <div><b>${num(kwhA)} → ${num(kwhB)} kWh</b>energy purchased this day</div>
-      <div><b>${money(cost(A))} → ${money(cost(B))}</b>energy cost this day</div>
-      <div><b>${num(pkA)} → ${num(pkB)} kW</b>peak HVAC load</div>
-      <div><b>${num(onPk(A))} → ${num(onPk(B))} kWh</b>electricity in configured peak window</div>`;
     renderElectricity();
     if (comsol) scoreComsol(B);
   }
   const inPeak = (h) => (P.peakStart <= P.peakEnd ? h >= P.peakStart && h < P.peakEnd : h >= P.peakStart || h < P.peakEnd);
-
-  function renderMonthly() {
-    const c = COLORS();
-    upsert('chMonthly', {
-      type: 'bar',
-      data: { labels: MONTHS, datasets: STRATEGIES.map((s) => ({ label: s.name, data: R[s.id].sim.months.map((m, i) => (m.hr.elecKWh.reduce((a, b) => a + b, 0) + m.hr.gasKWh.reduce((a, b) => a + b, 0)) * PF.DAYS_IN_MONTH[i] / 1000), backgroundColor: c[s.id], borderRadius: 2 })) },
-      options: baseChartOpts({ scales: { x: { ticks: { color: c.muted }, grid: { display: false } }, y: { title: { display: true, text: 'MWh purchased', color: c.muted }, ticks: { color: c.muted }, grid: { color: c.border } } } }),
-    });
-  }
 
   // ---------- COMSOL overlay ----------
   function parseCsv(text) {
@@ -915,7 +888,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
   function renderPriceMap() {
     const xs = range(0.5, 4, 36), ys = range(0.5, 15, 30);
     const eco = (id, m) => PF.economics(P, R[id].s, R[id].sim, m).lcc;
-    const val = ys.map((pp) => xs.map((em) => Math.min(eco('base', { energy: em }), eco('trad', { energy: em })) - Math.min(eco('pcm', { energy: em, pcmPrice: pp }), eco('hybrid', { energy: em, pcmPrice: pp }))));
+    const val = ys.map((pp) => xs.map((em) => eco('base', { energy: em }) - Math.min(eco('pcm', { energy: em, pcmPrice: pp }), eco('hybrid', { energy: em, pcmPrice: pp }))));
     drawHeatmap($('#hmPrice'), {
       xs, ys, val, xLabel: 'Energy price multiplier', yLabel: 'PCM price ($/kg)', fx: (x) => x.toFixed(1) + '×', fy: (y) => '$' + y.toFixed(1),
       marker: { x: 1, y: P.pcmPrice },
@@ -950,8 +923,9 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
   async function runOptimizer() {
     const btn = $('#btnOpt'); btn.disabled = true;
     const xs = range(14, 30, 17), ys = range(2, 40, 20).map(Math.round);
-    const P0 = { ...P, _loads: null }; const base = PF.simulateYear(P0, STRATEGIES[0]), trad = PF.simulateYear(P0, STRATEGIES[1]);
-    const nonL = Math.min(PF.economics(P0, STRATEGIES[0], base).lcc, PF.economics(P0, STRATEGIES[1], trad).lcc);
+    const P0 = { ...P, _loads: null };
+    const baseSim = PF.simulateYear(P0, STRATEGIES.find((s) => s.id === 'base'));
+    const nonL = PF.economics(P0, STRATEGIES.find((s) => s.id === 'base'), baseSim).lcc;
     const val = [];
     let best = { v: -Infinity };
     for (let j = 0; j < ys.length; j++) {
@@ -959,7 +933,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
       for (let i = 0; i < xs.length; i++) {
         const q = { ...P, pcmMelt: xs[i], pcmKg: ys[j], _loads: null };
         let l = Infinity;
-        for (const s of [STRATEGIES[2], STRATEGIES[3]]) l = Math.min(l, PF.economics(q, s, PF.simulateYear(q, s)).lcc);
+        for (const s of STRATEGIES.filter((strategy) => strategy.pcm)) l = Math.min(l, PF.economics(q, s, PF.simulateYear(q, s)).lcc);
         row.push(nonL - l);
         if (nonL - l > best.v) best = { v: nonL - l, m: xs[i], kg: ys[j] };
       }
@@ -999,7 +973,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
         const q = { ...P, ...d };
         if (econOnly) {
           const e = (id) => PF.economics(q, R[id].s, R[id].sim, d._electricityMult == null ? null : { electricity: d._electricityMult }).lcc;
-          return Math.min(e('base'), e('trad')) - Math.min(e('pcm'), e('hybrid'));
+          return e('base') - Math.min(e('pcm'), e('hybrid'));
         }
         return PF.runAll(q).verdict.savings;
       };
@@ -1043,9 +1017,10 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
   }
   function bestDesign(q) {
     const melts = [...new Set([q.lo, q.lo + 1.5, (q.lo + q.hi) / 2, q.hi - 1.5, q.hi].map((x) => Math.round(x * 2) / 2))];
-    const nonL = Math.min(...[0, 1].map((i) => PF.economics(q, STRATEGIES[i], PF.simulateYear(q, STRATEGIES[i])).lcc));
+    const base = STRATEGIES.find((strategy) => strategy.id === 'base');
+    const nonL = PF.economics(q, base, PF.simulateYear(q, base)).lcc;
     let b = null;
-    for (const m of melts) for (const kg of [4, 10, 20, 35]) for (const s of [STRATEGIES[2], STRATEGIES[3]]) {
+    for (const m of melts) for (const kg of [4, 10, 20, 35]) for (const s of STRATEGIES.filter((strategy) => strategy.pcm)) {
       const r = { ...q, pcmMelt: m, pcmKg: kg };
       const l = PF.economics(r, s, PF.simulateYear(r, s)).lcc;
       if (!b || l < b.l) b = { l, m, kg, s };
@@ -1098,14 +1073,15 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
       const [fac, cl] = combos[n];
       const fv = facilityVals(fac); delete fv.name;
       const q0 = { ...P, ...fv, climate: cl, facility: fac, _loads: null };
-      const base = PF.simulateYear(q0, STRATEGIES[0]), trad = PF.simulateYear(q0, STRATEGIES[1]);
-      const eB = PF.economics(q0, STRATEGIES[0], base), eT = PF.economics(q0, STRATEGIES[1], trad);
-      const nonL = Math.min(eB.lcc, eT.lcc);
+      const baseStrategy = STRATEGIES.find((strategy) => strategy.id === 'base');
+      const base = PF.simulateYear(q0, baseStrategy);
+      const eB = PF.economics(q0, baseStrategy, base);
+      const nonL = eB.lcc;
       let best = null;
       for (const m of melts) {
         if (m < q0.lo - 3 || m > q0.hi + 3) continue;
         const q = { ...q0, pcmMelt: m };
-        for (const s of [STRATEGIES[2], STRATEGIES[3]]) {
+        for (const s of STRATEGIES.filter((strategy) => strategy.pcm)) {
           const sim = PF.simulateYear(q, s), e = PF.economics(q, s, sim);
           if (!best || e.lcc < best.e.lcc) best = { q, s, sim, e, m };
         }
@@ -1113,9 +1089,8 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
       const a = PF.economics(best.q, best.s, best.sim, { pcmPrice: 0 }).lcc;
       const b = PF.economics(best.q, best.s, best.sim, { pcmPrice: 1 }).lcc - a;
       const be = b > 0 ? (nonL - a) / b : null;
-      const nonE = eB.lcc <= eT.lcc ? eB : eT;
       rows.push({ fac, cl, sav: nonL - best.e.lcc, be, m: best.m, s: best.s, nonL, pcmL: best.e.lcc,
-        dE: (nonE.elecKWh + nonE.gasKWh - best.e.elecKWh - best.e.gasKWh) / 1000, rt: best.sim.rideThrough, rtN: (eB.lcc <= eT.lcc ? base : trad).rideThrough });
+        dE: (eB.elecKWh + eB.gasKWh - best.e.elecKWh - best.e.gasKWh) / 1000, rt: best.sim.rideThrough, rtN: base.rideThrough });
       $('#scanStat').textContent = `Scanning… ${n + 1}/${combos.length}`;
       if (n % 2) await new Promise((r) => setTimeout(r, 0));
     }
@@ -1310,7 +1285,14 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
   }
   function loadHash() {
     const m = location.hash.match(/s=([^&]+)/); if (!m) return;
-    try { const diff = JSON.parse(decodeURIComponent(escape(atob(m[1])))); Object.assign(P, diff); } catch (e) { /* ignore bad hash */ }
+    try {
+      const diff = JSON.parse(decodeURIComponent(escape(atob(m[1]))));
+      Object.assign(P, diff);
+      if (diff.facility && diff.width == null && diff.length == null) {
+        const facility = FACILITIES[diff.facility];
+        if (facility) { P.width = facility.width; P.length = facility.length; }
+      }
+    } catch (e) { /* ignore bad hash */ }
   }
   function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200); }
   function exportCsv() {
@@ -1371,12 +1353,22 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
       if (errs.length) console.warn('custom.json:', errs);
     } catch (e) { /* no custom.json, or opened from file:// */ }
   }
+  function syncFootprint(p) {
+    const facility = FACILITIES[p.facility];
+    if (!Number.isFinite(p.floorArea) || p.floorArea <= 0) p.floorArea = facility.floorArea;
+    if (!Number.isFinite(p.width) || p.width <= 0) p.width = facility.width || Math.sqrt(p.floorArea);
+    if (!Number.isFinite(p.length) || p.length <= 0) p.length = facility.length || Math.sqrt(p.floorArea);
+    const scale = Math.sqrt(p.floorArea / (p.width * p.length));
+    p.width *= scale;
+    p.length *= scale;
+  }
   function sanitize() {
     if (!CLIMATES[P.climate]) P.climate = Object.keys(CLIMATES)[0];
     if (!FACILITIES[P.facility]) P.facility = Object.keys(FACILITIES)[0];
     if (!CROPS[P.crop]) P.crop = Object.keys(CROPS)[0];
     if (!PCMS[P.pcmType]) P.pcmType = Object.keys(PCMS)[0];
     if (!Array.isArray(P.extras)) P.extras = [];
+    syncFootprint(P);
   }
   function refreshAfterConfig() {
     sanitize(); buildForm(); buildPresets(); syncForm(); markPresets(); renderNotes(); renderMethod(); update();
@@ -1424,7 +1416,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
   }
 
   const APPLIES = [['all', 'All strategies'], ['anyPcm', 'Strategies with PCM'], ['noPcm', 'Strategies without PCM'], ['anyUpgrade', 'Upgraded-insulation strategies'],
-    ['base', 'Baseline only'], ['trad', 'Upgraded only'], ['pcm', 'Baseline + PCM only'], ['hybrid', 'Upgraded + PCM only']];
+    ['base', 'Base only'], ['hybrid', 'Hybrid PCM only'], ['pcm', 'Full PCM only']];
   function renderExtras() {
     const L = $('#extrasList');
     L.innerHTML = (P.extras || []).map((x, i) => `<div class="item" data-i="${i}">
@@ -1646,8 +1638,93 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
     $('#comsolStat').textContent = `Calibrated (${ff ? 'free-floating' : 'with HVAC'}) against "${s.name}" in ${MONTHS[month]}: h = ${best.h} W/m²K, mass × ${best.mm}. RMSE ${before.toFixed(2)} → ${best.e.toFixed(2)} °C.`;
     toast('Model calibrated to COMSOL');
   }
-  function parseLoads(text) {
-    const ids = { base: 'base', baseline: 'base', trad: 'trad', upgraded: 'trad', insulation: 'trad', pcm: 'pcm', hybrid: 'hybrid' };
+  function parseComsolLoadTable(text, filename) {
+    const lines = text.split(/\r?\n/);
+    const splitCsv = (line) => {
+      const cells = []; let cell = '', quoted = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (quoted && line[i + 1] === '"') { cell += '"'; i++; }
+          else quoted = !quoted;
+        } else if (ch === ',' && !quoted) { cells.push(cell.trim()); cell = ''; }
+        else cell += ch;
+      }
+      cells.push(cell.trim());
+      return cells;
+    };
+    const headerIndex = lines.findIndex((line) => /^\s*%?\s*time\s*\(s\)/i.test(line));
+    if (headerIndex < 0) return null;
+    const header = splitCsv(lines[headerIndex]).map((x) => x.toLowerCase().replace(/^%+\s*/, ''));
+    const timeCol = header.findIndex((x) => /^time\s*\(s\)/.test(x));
+    const heatCol = header.findIndex((x) => /^heating energy\s*\(kw\)/.test(x));
+    const coolCol = header.findIndex((x) => /^cooling energy\s*\(kw\)/.test(x));
+    if (timeCol < 0 || heatCol < 0 || coolCol < 0) {
+      return { error: 'COMSOL table found, but it needs Time (s), Heating Energy (kW), and Cooling Energy (kW) columns.' };
+    }
+
+    const name = filename.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const strategy = /\bhybrid\b/.test(name) ? 'hybrid'
+      : /\b(base|baseline)\b/.test(name) ? 'base'
+        : /\b(pcm|full|upgraded)\b/.test(name) ? 'pcm' : null;
+    if (!strategy) return { error: 'COMSOL hourly output needs a strategy in the filename (base, hybrid, or pcm).' };
+
+    const samples = [];
+    for (const line of lines.slice(headerIndex + 1)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('%') || trimmed.startsWith('#')) continue;
+      const cells = splitCsv(line);
+      const t = Number(cells[timeCol]), heat = Number(cells[heatCol]), cool = Number(cells[coolCol]);
+      if (![t, heat, cool].every(Number.isFinite)) {
+        if (/^[+-]?(?:\d+\.?\d*|\.\d+)/.test(trimmed)) return { error: 'A COMSOL data row has an invalid time or load value.' };
+        continue;
+      }
+      samples.push({ t, heat, cool });
+    }
+    if (samples.length < 2) return { error: 'The COMSOL table needs at least two hourly data rows.' };
+    if (samples[0].t < 0 || samples.some((sample, i) => i > 0 && sample.t <= samples[i - 1].t)) {
+      return { error: 'COMSOL time values must be nonnegative and strictly increasing.' };
+    }
+
+    const days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const boundaries = [0];
+    days.forEach((d) => boundaries.push(boundaries[boundaries.length - 1] + d * 86400));
+    const energy = Array.from({ length: 12 }, () => ({ heat: 0, cool: 0, seconds: 0 }));
+    for (let i = 0; i < samples.length - 1; i++) {
+      const a = samples[i], b = samples[i + 1], span = b.t - a.t;
+      let cursor = a.t;
+      while (cursor < b.t && cursor < boundaries[12]) {
+        let m = 0;
+        while (m < 11 && cursor >= boundaries[m + 1]) m++;
+        const end = Math.min(b.t, boundaries[m + 1]);
+        const f0 = (cursor - a.t) / span, f1 = (end - a.t) / span;
+        const h0 = a.heat + (b.heat - a.heat) * f0, h1 = a.heat + (b.heat - a.heat) * f1;
+        const c0 = a.cool + (b.cool - a.cool) * f0, c1 = a.cool + (b.cool - a.cool) * f1;
+        const hours = (end - cursor) / 3600;
+        energy[m].heat += (h0 + h1) * 0.5 * hours;
+        energy[m].cool += (c0 + c1) * 0.5 * hours;
+        energy[m].seconds += end - cursor;
+        cursor = end;
+      }
+    }
+    const out = {};
+    for (let m = 0; m < 12; m++) {
+      if (energy[m].seconds === 0) continue;
+      (out[strategy] = out[strategy] || {})[m] = {
+        heat: energy[m].heat / (energy[m].seconds / 86400),
+        cool: energy[m].cool / (energy[m].seconds / 86400),
+      };
+    }
+    return Object.keys(out).length ? { data: out, n: Object.keys(out[strategy]).length, strategy, derived: true } : null;
+  }
+  function parseLoads(text, filename) {
+    const table = parseComsolLoadTable(text, filename);
+    if (table) return table;
+    const ids = {
+      base: 'base', baseline: 'base',
+      hybrid: 'hybrid', 'hybrid pcm': 'hybrid', 'baseline + pcm': 'hybrid',
+      pcm: 'pcm', full: 'pcm', 'full pcm': 'pcm', 'upgraded + pcm': 'pcm',
+    };
     const out = {}; let n = 0;
     for (const line of text.split(/\r?\n/)) {
       const l = line.trim(); if (!l || /^[%#]/.test(l)) continue;
@@ -1667,10 +1744,13 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals the best
     $('#btnCalib').onclick = calibrate;
     $('#loadsFile').onchange = async (e) => {
       const f = e.target.files[0]; if (!f) return;
-      const r = parseLoads(await f.text());
-      if (!r) { $('#loadsStat').textContent = 'No valid rows. Expected: strategy, month, heat_kWh_per_day, cool_kWh_per_day'; return; }
+      const r = parseLoads(await f.text(), f.name);
+      if (r?.error) { $('#loadsStat').textContent = r.error; return; }
+      if (!r) { $('#loadsStat').textContent = 'No valid rows. Expected strategy/month/heat_kWh_per_day/cool_kWh_per_day, or a COMSOL table with time (s) and heating/cooling power (kW).'; return; }
       LOADS = r.data; $('#useLoads').disabled = false; $('#useLoads').checked = true;
-      $('#loadsStat').textContent = `${r.n} rows loaded for ${Object.keys(r.data).join(', ')}. Months or strategies left out use the built-in model.`;
+      $('#loadsStat').textContent = r.derived
+        ? `${r.n} monthly daily-load values derived from hourly COMSOL output for ${r.strategy}. Months or strategies left out use the built-in model.`
+        : `${r.n} rows loaded for ${Object.keys(r.data).join(', ')}. Months or strategies left out use the built-in model.`;
       update(); toast('Economics now use COMSOL loads');
     };
     $('#useLoads').onchange = update;

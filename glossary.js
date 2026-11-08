@@ -108,19 +108,18 @@
     { t: 'Custom cost item', kind: 'library', u: '$ or $/m²', where: 'Customize → Cost items', d: 'Any extra one-time or yearly cost or credit (grant, labour, generator), applied to the strategies you choose.' },
 
     // ---------------- Strategies ----------------
-    { t: 'Baseline insulation', kind: 'concept', where: 'Strategy comparison', d: 'The building as it is: baseline R-value and glazing, no PCM.' },
-    { t: 'Upgraded insulation', kind: 'concept', where: 'Strategy comparison', d: 'The "traditional" option: upgraded R-value and glazing, no PCM.' },
-    { t: 'Baseline + PCM', kind: 'concept', where: 'Strategy comparison', d: 'Existing insulation plus PCM panels.' },
-    { t: 'Upgraded insulation + PCM', kind: 'concept', where: 'Strategy comparison', d: 'Both the insulation upgrade and PCM panels.' },
-    { t: 'Best PCM option / best traditional option', kind: 'calc', where: 'Verdict', d: 'The cheaper of the two PCM strategies, and the cheaper of the two non-PCM strategies. The verdict compares these two.' },
+    { t: 'Base', kind: 'concept', where: 'Strategy comparison', d: 'The building as it is: baseline insulation and glazing, no PCM.' },
+    { t: 'Hybrid PCM', kind: 'concept', where: 'Strategy comparison', d: 'Baseline insulation and glazing with PCM panels.' },
+    { t: 'Full PCM', kind: 'concept', where: 'Strategy comparison', d: 'Upgraded insulation and glazing with PCM panels.' },
+    { t: 'Best PCM option / Base option', kind: 'calc', where: 'Verdict', d: 'The cheaper of Hybrid PCM and Full PCM, compared against Base (the only non-PCM strategy).' },
 
     // ---------------- Verdict & cards ----------------
-    { t: 'PCM life-cycle savings', kind: 'calc', u: '$', where: 'Verdict', d: 'Life-cycle cost of the best traditional option minus that of the best PCM option. Positive = PCM is cheaper.' },
-    { t: 'Break-even PCM price', kind: 'calc', u: '$/kg', where: 'Verdict', d: 'The PCM price at which PCM and traditional options cost the same, all else unchanged.' },
+    { t: 'PCM life-cycle savings', kind: 'calc', u: '$', where: 'Verdict', d: 'Life-cycle cost of Base minus that of the best PCM option. Positive = PCM is cheaper.' },
+    { t: 'Break-even PCM price', kind: 'calc', u: '$/kg', where: 'Verdict', d: 'The PCM price at which the best PCM option and Base cost the same, all else unchanged.' },
     { t: 'Break-even energy multiplier', kind: 'calc', u: '×', where: 'Verdict', d: 'How many times today\'s energy prices would make PCM break even.' },
-    { t: 'Energy saved by PCM', kind: 'calc', u: 'MWh/yr', where: 'Verdict', d: 'Purchased energy (electricity + gas) of the best traditional option minus the best PCM option.' },
+    { t: 'Energy saved by PCM', kind: 'calc', u: 'MWh/yr', where: 'Verdict', d: 'Purchased energy (electricity + gas) of Base minus the best PCM option.' },
     { t: 'HVAC peak reduction', kind: 'calc', u: 'kW', where: 'Verdict', d: 'Drop in the largest heating + cooling load, which lets HVAC equipment be smaller.' },
-    { t: 'CO₂ avoided', kind: 'calc', u: 't/yr', where: 'Verdict', d: 'Emissions saved by the best PCM option vs the best traditional option.' },
+    { t: 'CO₂ avoided', kind: 'calc', u: 't/yr', where: 'Verdict', d: 'Emissions saved by the best PCM option vs Base.' },
     { t: 'Life-cycle cost (LCC)', kind: 'calc', u: '$', where: 'Strategy cards', d: 'Upfront cost plus all future yearly costs over the analysis period, discounted to today\'s money. The main comparison metric.' },
     { t: 'Upfront (capex)', kind: 'calc', u: '$', where: 'Strategy cards', d: 'One-time cost at year 0: PCM, insulation upgrade, HVAC equipment (if credited) and custom one-time items.' },
     { t: 'Annual operating cost', kind: 'calc', u: '$/yr', where: 'Strategy cards', d: 'First-year energy + demand charges + carbon + PCM upkeep + outage risk + custom yearly items.' },
@@ -129,7 +128,6 @@
     { t: 'Outage ride-through', kind: 'calc', u: 'h', where: 'Strategy cards, Verdict', d: 'Hours the crop survives with HVAC and lights off before crossing its damage limits. The worse of a cold-night and hot-midday outage.' },
 
     // ---------------- Charts & table ----------------
-    { t: 'Cumulative discounted cost', kind: 'calc', u: '$', where: 'Strategy comparison chart', d: 'Running total of discounted costs by year. Where two lines cross is the discounted payback.' },
     { t: 'Life-cycle cost breakdown', kind: 'calc', u: '$', where: 'Strategy comparison chart', d: 'LCC split into energy, demand charges, HVAC equipment, insulation, PCM, and other (carbon, upkeep, replacements, risk). "PV" = present value.' },
     { t: 'Electricity purchased / on-peak', kind: 'calc', u: 'MWh/yr', where: 'Detail table', d: 'Yearly HVAC (and PCM fan) electricity, and how much of it falls in the peak window. Override: import COMSOL loads.' },
     { t: 'Natural gas', kind: 'calc', u: 'MWh/yr', where: 'Detail table', d: 'Gas burned for heating (gas boiler only). Override: import COMSOL loads.' },
@@ -142,14 +140,10 @@
     { t: 'Indoor temperature', kind: 'calc', u: '°C', where: 'Thermal model chart', d: 'Hourly indoor air temperature on the representative day of the chosen month.' },
     { t: 'PCM panel temperature', kind: 'calc', u: '°C', where: 'Thermal model chart', d: 'Temperature of the PCM. Flat stretches near the melting point = melting or freezing.' },
     { t: 'Outdoor air', kind: 'calc', u: '°C', where: 'Thermal model chart', d: 'Hourly outdoor temperature built from the location\'s monthly mean and diurnal range (+ warming offset).' },
-    { t: 'HVAC load (+heat / −cool)', kind: 'calc', u: 'kW', where: 'Thermal model chart', d: 'Heating (positive) or cooling (negative) needed each hour to hold the crop band.' },
-    { t: 'PCM melted (%)', kind: 'calc', u: '%', where: 'Thermal model chart', d: 'How much of the PCM is liquid each hour.' },
-    { t: 'Day statistics', kind: 'calc', where: 'Thermal model', d: 'For the chosen month\'s representative day: energy purchased, cost, peak HVAC load and on-peak electricity, shown as "strategy A → strategy B".' },
-    { t: 'Monthly HVAC energy purchased', kind: 'calc', u: 'MWh', where: 'Thermal model chart', d: 'Electricity + gas bought each month, per strategy.' },
     { t: 'Break-even map cell', kind: 'calc', u: '$', where: 'Break-even maps', d: 'PCM savings at that PCM price × energy-price multiplier (or melt point × quantity). Green = PCM wins.' },
     { t: 'Sensitivity (low / high case)', kind: 'calc', u: '$', where: 'Break-even maps → tornado', d: 'Change in PCM savings when one input moves to its low or high test value. Longest bars matter most.' },
     { t: 'Lever / Change vs now / Best design', kind: 'calc', where: 'Paths to a PCM win', d: 'A real-world change tested on your scenario, how much it moves PCM savings, and the PCM melt point and quantity that work best under it.' },
-    { t: '% of LCC', kind: 'calc', u: '%', where: 'Paths, Scenario scan', d: 'PCM savings as a share of the best traditional option\'s life-cycle cost.' },
+    { t: '% of LCC', kind: 'calc', u: '%', where: 'Paths, Scenario scan', d: 'PCM savings as a share of Base\'s life-cycle cost.' },
     { t: 'RMSE', kind: 'calc', u: '°C', where: 'COMSOL section', d: 'Typical difference between PhaseFarm\'s and COMSOL\'s indoor temperature. Smaller = better match.' },
     { t: 'COMSOL loads', kind: 'calc', u: 'kWh/day', where: 'COMSOL section', d: 'Daily heating/cooling per strategy and month. Normally calculated; replaced by your COMSOL results when imported and "Use COMSOL loads" is ticked.' },
 

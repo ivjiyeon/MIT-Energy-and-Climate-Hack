@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=3">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M9 22c0-7 5-12 14-12-1 8-6 13-14 12z' fill='%23a7f3d0'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -61,8 +61,14 @@
       </div>
       <div class="strategies" id="strategyCards"></div>
       <div class="grid2">
-        <div class="chart-box"><h3>Cumulative discounted cost</h3><div class="cwrap"><canvas id="chCum"></canvas></div></div>
-        <div class="chart-box"><h3>Life-cycle cost breakdown</h3><div class="cwrap"><canvas id="chBreak"></canvas></div></div>
+        <div class="chart-box">
+          <h3>Annual operating cost by strategy</h3>
+          <div class="cwrap"><canvas id="chAnnualOpex"></canvas></div>
+        </div>
+        <div class="chart-box">
+          <h3>Life-cycle cost breakdown</h3>
+          <div class="cwrap"><canvas id="chBreak"></canvas></div>
+        </div>
       </div>
       <div class="table-wrap"><table class="data" id="detailTable"></table></div>
       <details class="more calc" id="calcBox">
@@ -98,23 +104,19 @@
         <div class="chips" id="monthChips"></div>
         <label class="inline">Compare
           <select id="pairSel">
-            <option value="base|pcm">Baseline vs Baseline + PCM</option>
-            <option value="trad|hybrid">Upgraded vs Upgraded + PCM</option>
-            <option value="base|trad">Baseline vs Upgraded insulation</option>
+            <option value="base|hybrid">Base vs Hybrid PCM</option>
+            <option value="base|pcm">Base vs Full PCM</option>
+            <option value="hybrid|pcm">Hybrid PCM vs Full PCM</option>
           </select>
         </label>
       </div>
       <div class="chart-box"><h3>Temperatures <span class="muted small" style="font-weight:400">· click a legend item to hide or show it</span></h3><div class="cwrap tall"><canvas id="chTemp"></canvas></div></div>
-      <div class="chart-box"><h3>HVAC load &amp; PCM melt fraction</h3><div class="cwrap"><canvas id="chLoad"></canvas></div></div>
-      <div class="dayStats" id="dayStats"></div>
-      <div class="chart-box"><h3>Monthly HVAC energy purchased</h3><div class="cwrap short"><canvas id="chMonthly"></canvas></div></div>
-
     </section>
 
     <section id="electricity" class="card">
       <div class="card-head">
         <h2>Electricity cost &amp; regional demand</h2>
-        <p class="muted">Compare hourly electricity costs for all four strategies using the saved EIA monthly retail rate, applied evenly across each month’s hours. Regional hourly grid demand is shown on a separate axis for context; it is not the farm’s electricity use.</p>
+        <p class="muted">Compare hourly electricity costs for the three strategies using the saved EIA monthly retail rate, applied evenly across each month’s hours. Regional hourly grid demand is shown on a separate axis for context; it is not the farm’s electricity use.</p>
       </div>
       <div class="toolbar">
         <div class="chips" id="electricityMonthChips"></div>
@@ -155,7 +157,7 @@
         </div>
         <div class="step">
           <span class="num">3</span><h3>Drive costs with COMSOL loads</h3>
-          <p class="muted small">Import daily heating/cooling loads per strategy and month from COMSOL. The economics then use your COMSOL numbers in place of the built-in model's. <a href="comsol/comsol_loads_template.csv" download>Template</a></p>
+          <p class="muted small">Import daily heating/cooling loads per strategy and month, or a COMSOL hourly table with Time (s) and Heating/Cooling Energy (kW). Hourly tables are converted to monthly average kWh/day; include base, hybrid, or pcm in the filename to identify the strategy. The economics then use your COMSOL numbers in place of the built-in model's. <a href="comsol/comsol_loads_template.csv" download>Template</a></p>
           <div class="row">
             <label class="btn ghost file">Import loads CSV<input type="file" id="loadsFile" accept=".csv,.txt" hidden></label>
             <label class="toggle"><input type="checkbox" id="useLoads" disabled> Use COMSOL loads</label>
@@ -183,7 +185,7 @@
     <section id="maps" class="card">
       <div class="card-head">
         <h2>Break-even maps</h2>
-        <p class="muted">Green = the best PCM option has lower life-cycle cost than the best non-PCM option. The white line is break-even; ● marks your current inputs. Click a cell to apply it.</p>
+        <p class="muted">Green = the best PCM option has lower life-cycle cost than Base. The white line is break-even; ● marks your current inputs. Click a cell to apply it.</p>
       </div>
       <div class="grid2">
         <div class="chart-box">
@@ -193,7 +195,7 @@
         <div class="chart-box">
           <h3>PCM design optimizer: melt point × quantity</h3>
           <div class="heat"><canvas id="hmDesign"></canvas></div>
-          <div class="row"><button class="btn" type="button" id="btnOpt">Run optimizer</button><span class="muted" id="optStat">Runs ~340 annual simulations in your browser.</span></div>
+          <div class="row"><button class="btn" type="button" id="btnOpt">Run optimizer</button><span class="muted" id="optStat">Searches 340 designs across Hybrid PCM and Full PCM.</span></div>
         </div>
       </div>
       <div class="chart-box">
@@ -214,7 +216,7 @@
     <section id="scan" class="card">
       <div class="card-head">
         <h2>Where does PCM win?</h2>
-        <p class="muted">Scans every location × facility type with your economic, PCM and crop inputs, picks the best melt point for each, and ranks them by PCM savings versus the best traditional option.</p>
+        <p class="muted">Scans every location × facility type with your economic, PCM and crop inputs, picks the best melt point for each, and ranks them by PCM savings versus Base.</p>
       </div>
       <div class="row"><button class="btn" type="button" id="btnScan">Run scenario scan</button><span class="muted" id="scanStat"></span></div>
       <div class="table-wrap"><table class="data" id="scanTable"></table></div>

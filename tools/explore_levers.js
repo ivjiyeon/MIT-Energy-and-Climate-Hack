@@ -2,7 +2,7 @@
 /* Reproduce the "where can PCM win?" lever study behind docs/WHERE_PCM_WINS.md.
  * Usage:  node tools/explore_levers.js            → markdown tables to stdout
  *         node tools/explore_levers.js > out.md
- * Every case optimizes PCM melt point × quantity × (with / without insulation upgrade),
+ * Every case optimizes PCM melt point × quantity × insulation choice,
  * exactly like the app's "Paths to a PCM win" section.
  */
 const path = require('path');
@@ -25,9 +25,9 @@ function scenario(climate, facility = 'greenhouse', crop = 'lettuce') {
 function bestDesign(q) {
   const melts = [...new Set([q.lo, q.lo + 1.5, (q.lo + q.hi) / 2, q.hi - 1.5, q.hi].map((x) => Math.round(x * 2) / 2))];
   const ecoOf = (p, s) => PF.economics(p, s, PF.simulateYear(p, s));
-  const non = [PF.STRATEGIES[0], PF.STRATEGIES[1]].map((s) => ecoOf(q, s)).sort((a, b) => a.lcc - b.lcc)[0];
+  const non = ecoOf(q, PF.STRATEGIES.find((s) => s.id === 'base'));
   let b = null;
-  for (const m of melts) for (const kg of [4, 10, 20, 35]) for (const s of [PF.STRATEGIES[2], PF.STRATEGIES[3]]) {
+  for (const m of melts) for (const kg of [4, 10, 20, 35]) for (const s of PF.STRATEGIES.filter((strategy) => strategy.pcm)) {
     const r = { ...q, pcmMelt: m, pcmKg: kg };
     const sim = PF.simulateYear(r, s), e = PF.economics(r, s, sim);
     if (!b || e.lcc < b.e.lcc) b = { e, sim, m, kg, s };
@@ -36,7 +36,7 @@ function bestDesign(q) {
   return { sav: non.lcc - b.e.lcc, pct: 100 * (non.lcc - b.e.lcc) / non.lcc, m: b.m, kg: b.kg, s: b.s.id, use, rt: b.sim.rideThrough };
 }
 function utilisation(q) {
-  const sim = PF.simulateYear(q, PF.STRATEGIES[2]);
+  const sim = PF.simulateYear(q, PF.STRATEGIES.find((s) => s.id === 'hybrid'));
   return sim.months.map((mo) => Math.max(...mo.hr.liq) - Math.min(...mo.hr.liq));
 }
 
@@ -61,7 +61,7 @@ const SITES = ['nairobi', 'denver', 'phoenix', 'boston', 'minneapolis', 'seattle
 const k = (x) => `${x >= 0 ? '+' : '−'}$${Math.abs(x / 1000).toFixed(0)}k`;
 
 const out = [];
-out.push(`_Generated ${new Date().toISOString().slice(0, 10)} by \`tools/explore_levers.js\`. Hydroponic greenhouse, lettuce, 1000 m². Value = 20-yr life-cycle savings of the best PCM option vs the best non-PCM option (positive = PCM wins). Each cell uses its own optimal PCM design._\n`);
+out.push(`_Generated ${new Date().toISOString().slice(0, 10)} by \`tools/explore_levers.js\`. Hydroponic greenhouse, lettuce, 1000 m². Value = 20-yr life-cycle savings of the best PCM option vs Base (positive = PCM wins). Each cell uses its own optimal PCM design._\n`);
 out.push('### Savings by lever and site\n');
 out.push('| Lever | ' + SITES.map((s) => PF.CLIMATES[s].name.split(',')[0]).join(' | ') + ' |');
 out.push('|---|' + SITES.map(() => '---:').join('|') + '|');
@@ -71,7 +71,7 @@ for (const [name, v] of LEVERS) {
   out.push(`| ${name} | ${cells.join(' | ')} |`);
 }
 
-out.push('\n### PCM utilisation: share of capacity melted and refrozen each day (Baseline + PCM, 12 kg/m², 20 °C)\n');
+out.push('\n### PCM utilisation: share of capacity melted and refrozen each day (Hybrid PCM, 12 kg/m², 20 °C)\n');
 out.push('| Panels | ' + SITES.map((s) => PF.CLIMATES[s].name.split(',')[0]).join(' | ') + ' |');
 out.push('|---|' + SITES.map(() => '---:').join('|') + '|');
 for (const [n, v] of [['Passive 15 mm, h=6', {}], ['Fan-assisted 6 mm, h=15', FAN]]) {
@@ -82,7 +82,7 @@ out.push('\n### Best design for each winning case\n');
 out.push('| Site | Lever | Savings | % of LCC | PCM design | Strategy | Daily use | Ride-through |');
 out.push('|---|---|---:|---:|---|---|---:|---:|');
 for (const s of SITES) for (const [name, r] of detail[s]) if (r.sav >= 0) {
-  out.push(`| ${PF.CLIMATES[s].name.split(',')[0]} | ${name.replace(/\*\*/g, '')} | ${k(r.sav)} | ${r.pct.toFixed(1)}% | ${r.kg} kg/m² @ ${r.m} °C | ${r.s === 'pcm' ? 'Baseline + PCM' : 'Upgraded + PCM'} | ${Math.round(r.use * 100)}% | ${r.rt.toFixed(1)} h |`);
+  out.push(`| ${PF.CLIMATES[s].name.split(',')[0]} | ${name.replace(/\*\*/g, '')} | ${k(r.sav)} | ${r.pct.toFixed(1)}% | ${r.kg} kg/m² @ ${r.m} °C | ${r.s === 'hybrid' ? 'Hybrid PCM' : 'Full PCM'} | ${Math.round(r.use * 100)}% | ${r.rt.toFixed(1)} h |`);
 }
 
 out.push('\n### Other facility types (best lever combination: fans + off-grid)\n');

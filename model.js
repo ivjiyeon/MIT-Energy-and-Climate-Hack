@@ -28,19 +28,19 @@
 
   const FACILITIES = {
     greenhouse: {
-      name: 'Hydroponic greenhouse', floorArea: 1000, height: 4.5, glazedFrac: 0.8,
+      name: 'Hydroponic greenhouse', floorArea: 831.36, width: 19.2, length: 43.3, height: 5.3, glazedFrac: 0.8,
       Uglaz: 4.0, UglazUp: 2.6, glazUpCost: 28, R: 1.0, Rup: 3.5, ach: 0.8,
       waterL: 25, structKJ: 30, tau: 0.7, solarSens: 0.45, lightW: 0, lightH: 0, lightStart: 6,
       econ: true, tiers: 1,
     },
     vertical: {
-      name: 'Indoor vertical farm', floorArea: 1000, height: 6, glazedFrac: 0,
+      name: 'Indoor vertical farm', floorArea: 1000, width: Math.sqrt(1000), length: Math.sqrt(1000), height: 6, glazedFrac: 0,
       Uglaz: 3, UglazUp: 3, glazUpCost: 0, R: 2.0, Rup: 5.0, ach: 0.25,
       waterL: 60, structKJ: 60, tau: 0, solarSens: 0, lightW: 180, lightH: 16, lightStart: 21,
       econ: false, tiers: 5,
     },
     container: {
-      name: 'Container farm', floorArea: 28, height: 2.6, glazedFrac: 0,
+      name: 'Container farm', floorArea: 28, width: Math.sqrt(28), length: Math.sqrt(28), height: 2.6, glazedFrac: 0,
       Uglaz: 3, UglazUp: 3, glazUpCost: 0, R: 2.5, Rup: 5.0, ach: 0.3,
       waterL: 40, structKJ: 80, tau: 0, solarSens: 0, lightW: 250, lightH: 18, lightStart: 22,
       econ: false, tiers: 4,
@@ -61,10 +61,9 @@
   };
 
   const STRATEGIES = [
-    { id: 'base',   name: 'Baseline insulation',       upgrade: false, pcm: false },
-    { id: 'trad',   name: 'Upgraded insulation',       upgrade: true,  pcm: false },
-    { id: 'pcm',    name: 'Baseline + PCM',            upgrade: false, pcm: true },
-    { id: 'hybrid', name: 'Upgraded insulation + PCM', upgrade: true,  pcm: true },
+    { id: 'base',   name: 'Base',                upgrade: false, pcm: false },
+    { id: 'hybrid', name: 'Hybrid PCM',          upgrade: false, pcm: true },
+    { id: 'pcm',    name: 'Full PCM',            upgrade: true,  pcm: true },
   ];
 
   const GAS_CO2 = 0.181; // kg CO2 per kWh of natural gas
@@ -124,8 +123,9 @@
   }
 
   function geometry(p) {
-    const L = Math.sqrt(p.floorArea);
-    const wallA = 4 * L * p.height, roofA = p.floorArea, envA = wallA + roofA;
+    const width = Number.isFinite(p.width) ? p.width : Math.sqrt(p.floorArea);
+    const length = Number.isFinite(p.length) ? p.length : Math.sqrt(p.floorArea);
+    const wallA = 2 * (width + length) * p.height, roofA = p.floorArea, envA = wallA + roofA;
     const glazA = envA * p.glazedFrac, opA = envA - glazA;
     return { wallA, roofA, envA, glazA, opA, vol: p.floorArea * p.height };
   }
@@ -387,9 +387,9 @@
   }
 
   function verdict(out) {
-    const ids = ['base', 'trad', 'pcm', 'hybrid'];
+    const ids = ['base', 'hybrid', 'pcm'];
     const best = ids.reduce((a, b) => (out[a].eco.lcc <= out[b].eco.lcc ? a : b));
-    const bestNon = out.base.eco.lcc <= out.trad.eco.lcc ? 'base' : 'trad';
+    const bestNon = 'base';
     const bestPcm = out.pcm.eco.lcc <= out.hybrid.eco.lcc ? 'pcm' : 'hybrid';
     return { best, bestNon, bestPcm, savings: out[bestNon].eco.lcc - out[bestPcm].eco.lcc };
   }

@@ -2,14 +2,13 @@
 
 **MIT Climate Hackathon × COMSOL challenge:** *"Are there scenarios where phase change materials (PCMs) can reduce total cost compared with traditional insulation alone?"*
 
-PhaseFarm is a free, browser-only web app. It simulates a hydroponic greenhouse, vertical farm or container farm, then compares the 20-year cost of four options:
+PhaseFarm is a free, browser-only web app. It simulates a hydroponic greenhouse, vertical farm or container farm, then compares the 20-year cost of three options:
 
 | Option | What it means |
 |---|---|
-| Baseline insulation | The building as is |
-| Upgraded insulation | Thicker insulation and better glazing (the "traditional" option) |
-| Baseline + PCM | PCM panels inside the existing building |
-| Upgraded insulation + PCM | Both together |
+| Base | The building as is, without PCM |
+| Hybrid PCM | Existing insulation with PCM panels |
+| Full PCM | Upgraded insulation with PCM panels |
 
 It answers "does PCM pay off here?", shows where it would (break-even PCM price, energy price, climate), and connects to COMSOL Multiphysics® for higher-fidelity physics.
 
@@ -42,10 +41,10 @@ Paste the new tables into section 3 of `WHERE_PCM_WINS.md`, and check that the w
 
 ## What you can do
 
-- **Compare costs:** life-cycle cost, upfront cost, payback, CO₂, HVAC energy cost per kg of crop and power-outage ride-through for all four options.
+- **Compare costs:** life-cycle cost, upfront cost, payback, CO₂, HVAC energy cost per kg of crop and power-outage ride-through for all three options.
 - **See operating savings and payback:** choose two strategies to compare annual operating-cost differences and see when the investment's cumulative discounted cost breaks even.
-- **Watch the physics:** a representative day per month, with indoor temperature, PCM temperature, % melted and HVAC load.
-- **Model electricity prices:** the month-selectable chart compares hourly electricity costs for all four strategies using the saved 2025 EIA monthly retail-rate CSVs in `electricity_data/`. Run `python3 electricity_data/build_profile.py` to generate the static browser profile; no API key or server is needed at runtime. Monthly cents/kWh rates are converted to USD/kWh and applied uniformly to each hour of that month. The supplied rates are residential (RES), so Denver and Boston model costs use them as explicitly labeled proxies for commercial farm rates; other locations use configured fallback prices. The hourly PSCO/ISNE demand data is converted from UTC to each region’s local clock and averaged by month and hour. It appears on a separate chart axis as regional grid context only, never as farm consumption. The cost chart excludes gas and does not include fixed, demand, transmission or other bill charges.
+- **Watch the physics:** a representative day per month, with outdoor, indoor and PCM temperatures for selected strategies. The default greenhouse is 19.2 m wide × 43.3 m long with a 5.3 m ridge height; the model treats that height as rectangular and does not represent roof pitch or eave height.
+- **Model electricity prices:** the month-selectable chart compares hourly electricity costs for all three strategies using the saved 2025 EIA monthly retail-rate CSVs in `electricity_data/`. Run `python3 electricity_data/build_profile.py` to generate the static browser profile; no API key or server is needed at runtime. Monthly cents/kWh rates are converted to USD/kWh and applied uniformly to each hour of that month. The supplied rates are residential (RES), so Denver and Boston model costs use them as explicitly labeled proxies for commercial farm rates; other locations use configured fallback prices. The hourly PSCO/ISNE demand data is converted from UTC to each region’s local clock and averaged by month and hour. It appears on a separate chart axis as regional grid context only, never as farm consumption. The cost chart excludes gas and does not include fixed, demand, transmission or other bill charges.
 - **Outdoor temperatures:** the app automatically loads Open-Meteo hourly archive temperatures for the previous complete year and calculates a 24-hour average profile for each month and location. Built-in climate normals are used if the request fails.
 - **Find break-even points:** heatmaps of PCM price × energy price, and of melt temperature × PCM quantity (the optimizer).
 - **Sensitivity:** a tornado chart showing which assumption matters most.
