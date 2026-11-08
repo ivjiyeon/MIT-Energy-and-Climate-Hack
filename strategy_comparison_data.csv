@@ -1,0 +1,4 @@
+strategy_id,name,life_cycle_cost,capex,pcm_capex,insulation_capex,hvac_capex,annual_opex,energy_cost,demand_cost,electricity_kwh,gas_kwh,co2_t,energy_cost_per_kg_crop,annual_savings_vs_base,additional_capex_vs_base,lifecycle_savings_vs_base,annual_electricity,annual_electricity_cost
+base,Base,7126238,698096,0,8040,690056,326143,226626,78816,2345539,180123,932.6,7.7,0,0,0,265589,45150
+hybrid,Hybrid,6844972,792588,198000,8040,587000,301564,209644,74324,2362148,180123,939,7.16,24579,94492,281266,213286,36259
+pcm,Full PCM,6910672,882815,257240,4020,622000,301232,207355,75230,2271271,296673,952.2,7.13,24911,184719,215566,281519,47858
