@@ -127,6 +127,10 @@ table.data { width: 100%; border-collapse: collapse; font-size: 12.5px; font-var
 table.data th, table.data td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
 table.data th:first-child, table.data td:first-child { text-align: left; }
 table.data thead th { color: var(--muted); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; }
+#benchmarkTable { table-layout: fixed; }
+#benchmarkTable th, #benchmarkTable td { white-space: normal; }
+#benchmarkTable th:first-child, #benchmarkTable td:first-child { width: 34%; }
+#benchmarkTable th:not(:first-child), #benchmarkTable td:not(:first-child) { width: 22%; }
 table.data tbody tr.click { cursor: pointer; } table.data tbody tr.click:hover { background: var(--surface-2); }
 .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
 .pill.good { background: var(--good-bg); color: var(--good); } .pill.bad { background: var(--bad-bg); color: var(--bad); }

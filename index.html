@@ -62,15 +62,20 @@
       <div class="strategies" id="strategyCards"></div>
       <div class="grid2">
         <div class="chart-box">
-          <h3>Annual operating cost by strategy</h3>
+          <h3>Annual electricity cost by strategy</h3>
           <div class="cwrap"><canvas id="chAnnualOpex"></canvas></div>
         </div>
         <div class="chart-box">
-          <h3>Life-cycle cost breakdown</h3>
+          <h3>Life-cycle cost by strategy</h3>
           <div class="cwrap"><canvas id="chBreak"></canvas></div>
         </div>
       </div>
-      <div class="table-wrap"><table class="data" id="detailTable"></table></div>
+      <div class="chart-box">
+        <h3>Default strategy comparison data</h3>
+        <p class="muted small">Overview costs and emissions use the provided benchmark values for Base, Hybrid, and Full PCM. Annual savings and payback use CSV annual electricity costs and upfront costs with the current finance settings.</p>
+        <p class="muted small" id="benchmarkStatus" aria-live="polite">Loading strategy comparison data…</p>
+        <div class="table-wrap"><table class="data" id="benchmarkTable"></table></div>
+      </div>
       <details class="more calc" id="calcBox">
         <summary>Show the exact cost calculation (with your numbers)</summary>
         <div class="toolbar" style="margin-top:12px"><div class="chips" id="calcChips"></div></div>
@@ -81,7 +86,7 @@
     <section id="payback" class="card">
       <div class="card-head">
         <h2>Annual savings &amp; payback</h2>
-        <p class="muted">Choose an option and a reference strategy. Payback compares their cumulative discounted costs, including upfront costs and replacements.</p>
+        <p class="muted">Choose an option and a reference strategy. Annual electricity savings and payback use annual electricity costs and upfront capex from the strategy CSV, with current finance settings.</p>
       </div>
       <div class="payback-controls">
         <label>Investment option<select id="paybackInvestment"></select></label>
@@ -90,15 +95,15 @@
       <div class="payback-metrics" id="paybackMetrics"></div>
       <div class="chart-box">
         <h3>Cumulative savings over time</h3>
-        <p class="muted small">Positive values mean the selected option has cost less overall than the reference.</p>
+        <p class="muted small" id="paybackChartNote">Positive values mean the selected option has cost less overall than the reference.</p>
         <div class="cwrap"><canvas id="chPayback"></canvas></div>
       </div>
     </section>
 
     <section id="thermal" class="card">
       <div class="card-head">
-        <h2>Thermal model — representative day</h2>
-        <p class="muted">A lumped "COMSOL-lite" model: indoor air + nutrient water + structure, with an enthalpy-method PCM layer. HVAC holds the crop band; PCM absorbs surplus heat and gives it back later.</p>
+        <h2>Thermal model comparison</h2>
+        <p class="muted">Indoor temperatures from the supplied three-model comparison, averaged by hour across the selected month.</p>
       </div>
       <div class="toolbar">
         <div class="chips" id="monthChips"></div>
@@ -110,21 +115,32 @@
           </select>
         </label>
       </div>
-      <div class="chart-box"><h3>Temperatures <span class="muted small" style="font-weight:400">· click a legend item to hide or show it</span></h3><div class="cwrap tall"><canvas id="chTemp"></canvas></div></div>
+      <div class="chart-box">
+        <h3 id="thermalChartTitle">Indoor temperature comparison</h3>
+        <p class="muted small" id="thermalDataStatus" aria-live="polite"></p>
+        <div class="cwrap tall"><canvas id="chTemp"></canvas></div>
+      </div>
     </section>
 
     <section id="electricity" class="card">
       <div class="card-head">
-        <h2>Electricity cost &amp; regional demand</h2>
-        <p class="muted">Compare hourly electricity costs for the three strategies using the saved EIA monthly retail rate, applied evenly across each month’s hours. Regional hourly grid demand is shown on a separate axis for context; it is not the farm’s electricity use.</p>
+        <h2>Monthly electricity use comparison</h2>
+        <p class="muted">Compare average hourly electricity use for Base, Hybrid PCM, and Full PCM using the supplied 2025 comparison data.</p>
       </div>
       <div class="toolbar">
-        <div class="chips" id="electricityMonthChips"></div>
+        <label class="inline">View
+          <select id="electricityView">
+            <option value="monthly">Monthly</option>
+            <option value="hourly">Hourly</option>
+          </select>
+        </label>
+        <label class="inline" id="electricityMonthControl" hidden>Month
+          <select id="electricityMonth"></select>
+        </label>
       </div>
       <div class="chart-box">
-        <h3 id="electricityChartTitle">Hourly electricity cost by strategy</h3>
-        <p class="muted small">The left axis shows modeled electricity cost in USD/hour; the right axis shows regional grid demand in MWh/hour. Hover for the modeled cost and retail rate. Gas use is excluded from this electricity-only chart.</p>
-        <div class="dayStats" id="electricityStats"></div>
+        <h3 id="electricityChartTitle">Monthly average hourly electricity use by strategy</h3>
+        <p class="muted small">Monthly view averages kWh per hour across each month. Hourly view averages each hour of the selected month across all its dates. Hover to compare strategy values; tariffs and gas use are not applied.</p>
         <div class="cwrap tall"><canvas id="chElectricity"></canvas></div>
       </div>
     </section>

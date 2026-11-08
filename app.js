@@ -88,7 +88,7 @@
   const BASE_DEFAULTS = {
     // climate: 'boston', facility: 'greenhouse', crop: 'lettuce', tempOffset: 0, weatherProfile: null,
     climate: 'denver', facility: 'greenhouse', crop: 'tomato', tempOffset: 0, weatherProfile: null,
-    pcmType: 'paraffin', pcmKg: 12, pcmMelt: 20, pcmRange: 2, pcmThick: 15, hConv: 6, pcmPrice: 5, pcmInstall: 12,
+    pcmType: 'paraffin', pcmKg: 2, pcmMelt: 20, pcmRange: 2, pcmThick: 25, hConv: 6, pcmPrice: 5, pcmInstall: 12,
     smart: true, preHours: 4, prePower: 25,
     heating: 'hp', boilerEff: 0.85, priceOff: 0.14, pricePeak: 0.32, peakStart: 16, peakEnd: 21, demandCharge: 18,
     gasPrice: 1.4, gridCO2: 0.38, carbonPrice: 0,
@@ -99,7 +99,7 @@
   const facilityVals = (f) => ({ ...FACILITIES[f] });
   const cropVals = (c) => { const x = CROPS[c]; return { lo: x.lo, hi: x.hi, critLo: x.critLo, critHi: x.critHi, yieldKg: x.yieldKg, cropPrice: x.price, cycle: x.cycle }; };
   const defaults = () => {
-    const d = { ...BASE_DEFAULTS, ...facilityVals('greenhouse'), ...cropVals('lettuce'), extras: [] };
+    const d = { ...BASE_DEFAULTS, ...facilityVals('greenhouse'), ...cropVals('lettuce'), lo: 20, hi: 28, extras: [] };
     delete d.name; return d;
   };
 
@@ -118,7 +118,12 @@
   let P = defaults();
   let R = null; // latest runAll result
   let month = 0;
+  let electricityView = 'monthly';
+  let electricityMonth = 0;
   let comsol = null;
+  let thermalTemperatures = null;
+  let comparisonElectricity = null;
+  let strategyBenchmark = null;
   let weatherRequestId = 0;
   let weatherRequestKey = null;
   let weatherStatusState = null;
@@ -137,7 +142,7 @@
     const referenceSelect = $('#paybackReference');
     const priorInvestment = paybackInvestment || investmentSelect.value;
     const priorReference = paybackReference || referenceSelect.value;
-    paybackInvestment = STRATEGIES.some((s) => s.id === priorInvestment) ? priorInvestment : R.verdict.bestPcm;
+    paybackInvestment = STRATEGIES.some((s) => s.id === priorInvestment) ? priorInvestment : 'hybrid';
     paybackReference = STRATEGIES.some((s) => s.id === priorReference) ? priorReference : R.verdict.bestNon;
     if (paybackReference === paybackInvestment) {
       paybackReference = STRATEGIES.find((s) => s.id !== paybackInvestment)?.id || R.verdict.bestNon;
@@ -147,23 +152,31 @@
     referenceSelect.innerHTML = options;
     investmentSelect.value = paybackInvestment;
     referenceSelect.value = paybackReference;
-    const investment = R[paybackInvestment].eco;
-    const reference = R[paybackReference].eco;
-    const annualSavings = reference.annualOpex - investment.annualOpex;
+    const investment = strategyBenchmark?.find((strategy) => strategy.id === paybackInvestment);
+    const reference = strategyBenchmark?.find((strategy) => strategy.id === paybackReference);
+    if (!investment || !reference) {
+      $('#paybackMetrics').textContent = 'Strategy benchmark data is unavailable.';
+      $('#paybackChartNote').textContent = 'Could not load strategy comparison data.';
+      return;
+    }
+    const investmentCosts = paybackCosts(investment);
+    const referenceCosts = paybackCosts(reference);
+    const annualSavings = reference.annualElectricityCost - investment.annualElectricityCost;
     const upfrontDifference = investment.capex - reference.capex;
-    const paidBackAt = PF.paybackYear(investment.cum, reference.cum);
+    const paidBackAt = PF.paybackYear(investmentCosts, referenceCosts);
     const paybackLabel = paidBackAt == null
       ? `Not within ${P.horizon} years`
       : paidBackAt === 0 ? 'Already lower upfront' : `${paidBackAt} years`;
-    const annualLabel = annualSavings >= 0 ? 'Annual operating cost saved' : 'Annual extra operating cost';
+    const annualLabel = annualSavings >= 0 ? 'Annual electricity cost saved' : 'Annual extra electricity cost';
     const annualColor = annualSavings >= 0 ? 'pos' : 'neg';
     $('#paybackMetrics').innerHTML = `
       <div class="payback-metric"><span class="muted small">${annualLabel} · year 1</span><b class="${annualColor}">${money(Math.abs(annualSavings))}/yr</b></div>
       <div class="payback-metric"><span class="muted small">Additional upfront cost</span><b>${money(upfrontDifference)}</b></div>
       <div class="payback-metric"><span class="muted small">Discounted payback</span><b>${paybackLabel}</b></div>`;
     const c = COLORS();
-    const years = investment.cum.map((_, i) => i);
-    const savings = years.map((year) => reference.cum[year] - investment.cum[year]);
+    const years = investmentCosts.map((_, i) => i);
+    const savings = years.map((year) => referenceCosts[year] - investmentCosts[year]);
+    $('#paybackChartNote').textContent = 'Cumulative discounted savings use annual_electricity_cost and upfront capex from the strategy CSV, with the current discount and escalation settings.';
     upsert('chPayback', {
       type: 'line',
       data: { labels: years, datasets: [
@@ -196,52 +209,45 @@
   }
   function renderElectricity() {
     const c = COLORS();
-    const profile = P._tariffProfile;
-    const rates = Array.from({ length: 24 }, (_, h) => profile?.hourly?.[month]?.[h] ??
-      (inPeak(h) ? P.pricePeak : P.priceOff));
-    const dailyCosts = STRATEGIES.map((strategy) => {
-      const hourlyKWh = R[strategy.id].sim.months[month].hr.elecKWh;
-      return hourlyKWh.reduce((total, kWh, h) => total + kWh * rates[h], 0);
-    });
-    const demand = profile?.demandMWh?.[month];
-    $('#electricityChartTitle').textContent = `Hourly electricity cost by strategy · ${MONTHS[month]}`;
-    $('#electricityStats').innerHTML = STRATEGIES.map((strategy, i) =>
-      `<div><b>${money(dailyCosts[i])}</b>${strategy.name} · cost per modeled day</div>`).join('');
-    document.querySelectorAll('#electricityMonthChips .chip').forEach((chip, i) => chip.classList.toggle('on', i === month));
+    const hourly = electricityView === 'hourly';
+    const monthRecords = comparisonElectricity?.[electricityMonth];
     const datasets = STRATEGIES.map((strategy) => ({
       label: strategy.name,
-      data: R[strategy.id].sim.months[month].hr.elecKWh.map((kWh, h) => kWh * rates[h]),
+      data: hourly
+        ? Array.from({ length: 24 }, (_, hour) => {
+          const records = monthRecords?.filter((row) => row.hour === hour);
+          if (records?.length) return records.reduce((total, row) => total + row.kWh[strategy.id], 0) / records.length;
+          return R[strategy.id].sim.months[electricityMonth].hr.elecKWh[hour];
+        })
+        : MONTHS.map((_, m) => {
+          const records = comparisonElectricity?.[m];
+          if (records?.length) return records.reduce((total, row) => total + row.kWh[strategy.id], 0) / records.length;
+          const hourlyKWh = R[strategy.id].sim.months[m].hr.elecKWh;
+          return hourlyKWh.reduce((total, kWh) => total + kWh, 0) / hourlyKWh.length;
+        }),
       borderColor: c[strategy.id], backgroundColor: c[strategy.id], borderWidth: 2.5,
-      pointRadius: 2, tension: 0.12,
+      pointRadius: 3, tension: 0.12,
     }));
-    if (demand) datasets.push({
-      label: `${profile.region} regional grid demand`,
-      data: demand,
-      yAxisID: 'yDemand',
-      borderColor: c.muted,
-      backgroundColor: c.muted,
-      borderWidth: 1.5,
-      borderDash: [5, 4],
-      pointRadius: 0,
-      tension: 0.12,
-    });
+    const monthControl = $('#electricityMonthControl');
+    monthControl.hidden = !hourly;
+    monthControl.style.display = hourly ? 'inline-flex' : 'none';
+    $('#electricityChartTitle').textContent = hourly
+      ? `Average hourly electricity use by strategy · ${MONTHS[electricityMonth]} 2025`
+      : 'Monthly average hourly electricity use by strategy · 2025';
     upsert('chElectricity', {
       type: 'line',
       data: {
-        labels: Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`),
+        labels: hourly ? Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, '0')}:00`) : MONTHS,
         datasets,
       },
       options: baseChartOpts({
         scales: {
-          x: { title: { display: true, text: 'Hour of day', color: c.muted }, ticks: { color: c.muted }, grid: { color: c.border } },
-          y: { title: { display: true, text: 'Electricity cost (USD/hour)', color: c.muted }, ticks: { color: c.muted, callback: (v) => `$${Number(v).toFixed(3)}` }, grid: { color: c.border } },
-          yDemand: { display: !!demand, position: 'right', title: { display: true, text: 'Regional grid demand (MWh/hour)', color: c.muted }, ticks: { color: c.muted }, grid: { drawOnChartArea: false } },
+          x: { title: { display: true, text: hourly ? 'Hour of day' : 'Month', color: c.muted }, ticks: { color: c.muted }, grid: { color: c.border } },
+          y: { title: { display: true, text: 'Average electricity use (kWh/hour)', color: c.muted }, ticks: { color: c.muted }, grid: { color: c.border } },
         },
         plugins: {
           legend: { position: 'bottom', labels: { color: c.text, boxWidth: 12, usePointStyle: true } },
-          tooltip: { callbacks: { label: (x) => x.dataset.yAxisID === 'yDemand'
-            ? `${x.dataset.label}: ${Number(x.raw).toFixed(0)} MWh in this hour (regional, not farm demand)`
-            : `${x.dataset.label}: $${Number(x.raw).toFixed(4)}/hour (${profile ? 'EIA residential retail proxy' : 'configured electricity price'} $${rates[x.dataIndex].toFixed(4)}/kWh)` } },
+          tooltip: { callbacks: { label: (x) => `${x.dataset.label}: ${Number(x.raw).toFixed(2)} kWh/hour` } },
         },
       }),
     });
@@ -397,7 +403,7 @@
     renderPayback();
     renderAnnualOpex();
     renderBreak();
-    renderDetail();
+    renderBenchmark();
     renderCalc();
     renderDay();
     renderPriceMap();
@@ -499,6 +505,28 @@
   }
 
   function renderVerdict() {
+    if (strategyBenchmark) {
+      const base = strategyBenchmark.find((strategy) => strategy.id === 'base');
+      const lowest = strategyBenchmark.reduce((best, strategy) =>
+        strategy.lifeCycleCost < best.lifeCycleCost ? strategy : best);
+      const savings = base.lifeCycleCost - lowest.lifeCycleCost;
+      const annualElectricitySavings = base.annualElectricityCost - lowest.annualElectricityCost;
+      const upfrontDifference = lowest.capex - base.capex;
+      const co2Difference = lowest.co2T - base.co2T;
+      const win = savings >= 0;
+      const h = $('#verdict');
+      h.className = 'hero ' + (win ? 'win' : 'lose');
+      h.innerHTML = `<div>
+        <h1>${win ? 'Yes, PCM lowers total cost' : 'Not yet, PCM costs more'} for a ${FACILITIES[P.facility].name.toLowerCase()} in ${CLIMATES[P.climate].name}</h1>
+        <p>Over 20 years, the lowest-cost option is <b>${lowest.name}</b>. Its benchmark life-cycle cost ${win ? 'is lower' : 'is higher'} than Base by <b>${money(Math.abs(savings))}</b>.</p>
+        <div class="kpis">
+          <div><b>${money(Math.abs(annualElectricitySavings))}/yr</b>${annualElectricitySavings >= 0 ? 'annual electricity cost saved' : 'annual extra electricity cost'}</div>
+          <div><b>${money(Math.abs(upfrontDifference))}</b>${upfrontDifference >= 0 ? 'additional upfront cost' : 'lower upfront cost'} vs Base</div>
+          <div><b>${num(Math.abs(co2Difference), 1)} t/yr</b>${co2Difference >= 0 ? 'additional CO₂ vs Base' : 'CO₂ avoided vs Base'}</div>
+        </div></div>
+        <div class="big"><b class="${win ? 'pos' : 'neg'}">${win ? '+' : '−'}${money(Math.abs(savings)).replace('−', '')}</b><span>PCM life-cycle savings<br>vs Base</span></div>`;
+      return;
+    }
     const v = R.verdict, out = R;
     const win = v.savings > 0;
     const bePrice = breakEvenPcmPrice(P, out);
@@ -519,30 +547,29 @@
         <div><b>${num(dE / 1000, 1)} MWh/yr</b>energy saved by PCM</div>
         <div><b>${num(dPeak, 0)} kW</b>HVAC peak reduction</div>
         <div><b>${num((nonS.eco.co2t - pcmS.eco.co2t), 1)} t/yr</b>CO₂ avoided</div>
-        <div><b>${num(pcmS.sim.rideThrough, 1)} h vs ${num(nonS.sim.rideThrough, 1)} h</b>outage ride-through</div>
       </div></div>
       <div class="big"><b class="${win ? 'pos' : 'neg'}">${win ? '+' : '−'}${money(Math.abs(v.savings)).replace('−', '')}</b><span>PCM life-cycle savings<br>vs Base</span></div>`;
   }
 
   function renderCards() {
     const c = COLORS();
-    $('#horizonNote').innerHTML = `${P.horizon}-year life-cycle cost at ${P.discount}% discount rate. Payback is measured against the baseline.` +
+    const lowestBenchmarkCost = strategyBenchmark?.reduce((lowest, strategy) =>
+      Math.min(lowest, strategy.lifeCycleCost), Infinity);
+    $('#horizonNote').innerHTML = 'Benchmark values from strategy_comparison_data.csv.' +
       (P._loads ? ' <span class="pill good">Energy from imported COMSOL loads</span>' : '') +
       ((P.extras || []).some((x) => x.enabled !== false) ? ` <span class="pill good">${P.extras.filter((x) => x.enabled !== false).length} custom cost item(s)</span>` : '');
     $('#strategyCards').innerHTML = STRATEGIES.map((s) => {
       const o = R[s.id], e = o.eco;
-      const pb = s.id === 'base' ? '—' : (() => { const y = PF.paybackYear(e.cum, R.base.eco.cum); return y == null ? `> ${P.horizon} yr` : y === 0 ? 'Immediate' : `${y} yr`; })();
-      const best = R.verdict.best === s.id;
+      const benchmark = strategyBenchmark?.find((strategy) => strategy.id === s.id);
+      const best = benchmark ? benchmark.lifeCycleCost === lowestBenchmarkCost : R.verdict.best === s.id;
       return `<div class="strat ${best ? 'best' : ''}" style="--c:${c[s.id]}">
         ${best ? '<span class="tag">Lowest cost</span>' : ''}
-        <h4>${s.name}</h4><div class="lcc">${money(e.lcc)}</div><div class="muted small">life-cycle cost</div>
+        <h4>${s.name}</h4><div class="lcc">${money(benchmark?.lifeCycleCost ?? e.lcc)}</div><div class="muted small">life-cycle cost</div>
         <dl>
-          <dt>Upfront</dt><dd>${money(e.capex)}</dd>
-          <dt>Annual operating</dt><dd>${money(e.annualOpex)}</dd>
-          <dt>Payback</dt><dd>${pb}</dd>
-          <dt>Energy cost / kg crop</dt><dd>$${e.costPerKg.toFixed(2)}</dd>
-          <dt>CO₂</dt><dd>${num(e.co2t, 1)} t/yr</dd>
-          <dt>Outage ride-through</dt><dd>${num(o.sim.rideThrough, 1)} h</dd>
+          <dt>Upfront</dt><dd>${money(benchmark?.capex ?? e.capex)}</dd>
+          <dt>Annual operating</dt><dd>${money(benchmark ? benchmark.annualElectricityCost + benchmark.energyCost : e.annualOpex)}</dd>
+          <dt>Energy cost ($/yr)</dt><dd>${money(benchmark?.energyCost ?? e.energyCost)}</dd>
+          <dt>CO₂</dt><dd>${num(benchmark?.co2T ?? e.co2t, 1)} t/yr</dd>
         </dl></div>`;
     }).join('');
   }
@@ -575,30 +602,24 @@
     return { pcm: e.pcmCapex, ins: e.insCapex, hvac: e.hvacCapex, energy: pvE, demand: pvD, other: pvO + repl };
   }
   function renderAnnualOpex() {
+    if (!R || !strategyBenchmark) return;
     const c = COLORS();
-    const components = [
-      ['energyCost', 'Energy', '#0ea5e9'],
-      ['demandCost', 'Demand charges', '#6366f1'],
-      ['carbonCost', 'Carbon', '#f43f5e'],
-      ['maint', 'Maintenance', '#14b8a6'],
-      ['outageRisk', 'Outage risk', '#f59e0b'],
-      ['extraAnnual', 'Custom annual costs', '#8b5cf6'],
-    ];
+    const strategyColors = [c.base, c.hybrid, c.pcm];
     upsert('chAnnualOpex', {
       type: 'bar',
       data: {
-        labels: STRATEGIES.map((s) => s.name),
-        datasets: components.map(([key, label, color]) => ({
-          label,
-          data: STRATEGIES.map((s) => R[s.id].eco[key]),
-          backgroundColor: color,
+        labels: strategyBenchmark.map((strategy) => strategy.name),
+        datasets: [{
+          label: 'Annual electricity cost',
+          data: strategyBenchmark.map((strategy) => strategy.annualElectricityCost),
+          backgroundColor: strategyBenchmark.map((_, index) => strategyColors[index]),
           borderRadius: 3,
-        })),
+        }],
       },
       options: baseChartOpts({
         scales: {
-          x: { stacked: true, ticks: { color: c.muted }, grid: { display: false } },
-          y: { stacked: true, ticks: { color: c.muted, callback: (v) => money(v, 1) }, grid: { color: c.border } },
+          x: { ticks: { color: c.muted }, grid: { display: false } },
+          y: { ticks: { color: c.muted, callback: (v) => money(v, 1) }, grid: { color: c.border } },
         },
         plugins: {
           legend: { position: 'bottom', labels: { color: c.text, boxWidth: 10, font: { size: 11 } } },
@@ -608,6 +629,33 @@
     });
   }
   function renderBreak() {
+    if (strategyBenchmark) {
+      const c = COLORS();
+      const strategyColors = [c.base, c.hybrid, c.pcm];
+      upsert('chBreak', {
+        type: 'bar',
+        data: {
+          labels: strategyBenchmark.map((strategy) => strategy.name),
+          datasets: [{
+            label: 'Life-cycle cost',
+            data: strategyBenchmark.map((strategy) => strategy.lifeCycleCost),
+            backgroundColor: strategyBenchmark.map((_, index) => strategyColors[index]),
+            borderRadius: 3,
+          }],
+        },
+        options: baseChartOpts({
+          scales: {
+            x: { ticks: { color: c.muted }, grid: { display: false } },
+            y: { ticks: { color: c.muted, callback: (v) => money(v, 1) }, grid: { color: c.border } },
+          },
+          plugins: {
+            legend: { position: 'bottom', labels: { color: c.text, boxWidth: 10, font: { size: 11 } } },
+            tooltip: { callbacks: { label: (x) => `${x.dataset.label}: ${money(x.raw)}` } },
+          },
+        }),
+      });
+      return;
+    }
     const c = COLORS();
     const parts = STRATEGIES.map((s) => pvParts(s.id));
     const keys = [['energy', 'Energy (PV)', '#0ea5e9'], ['demand', 'Demand charges (PV)', '#6366f1'], ['hvac', 'HVAC equipment', '#94a3b8'],
@@ -622,34 +670,51 @@
     });
   }
 
-  function renderDetail() {
-    const rows = [
-      ['Electricity purchased (MWh/yr)', (e) => num(e.elecKWh / 1000, 1)],
-      ['… of which on-peak', (e) => num(e.peakKWh / 1000, 1)],
-      ['Natural gas (MWh/yr)', (e) => num(e.gasKWh / 1000, 1)],
-      ['Energy cost ($/yr)', (e) => money(e.energyCost)],
-      ['Demand charges ($/yr)', (e) => money(e.demandCost)],
-      ['HVAC capacity heat / cool (kW)', (e) => `${num(e.capHeat)} / ${num(e.capCool)}`],
-      ['PCM fan electricity (MWh/yr)', (e, o) => num(o.sim.months.reduce((a, m, i) => a + m.hr.fanKWh.reduce((x, y) => x + y, 0) * PF.DAYS_IN_MONTH[i], 0) / 1000, 1)],
-      ['PCM daily melt/freeze use (avg)', (e, o) => (o.sim.tp.m ? Math.round(100 * o.sim.months.reduce((a, m) => a + Math.max(...m.hr.liq) - Math.min(...m.hr.liq), 0) / 12) + '%' : '—')],
-      ['PCM capex', (e) => money(e.pcmCapex)],
-      ['Insulation capex', (e) => money(e.insCapex)],
-      ['HVAC capex', (e) => money(e.hvacCapex)],
-      ['Custom items: capex / annual', (e) => `${money(e.extraCapex)} / ${money(e.extraAnnual)}`],
-      ['Cold / hot outage ride-through (h)', (e, o) => `${num(o.sim.rtCold, 1)} / ${num(o.sim.rtHot, 1)}`],
-      ['PCM mass / panel area', (e, o) => (o.sim.tp.m ? `${num(o.sim.tp.m / 1000, 1)} t / ${num(o.sim.tp.area)} m²` : '—')],
+  function renderBenchmark() {
+    if (!strategyBenchmark) return;
+    const integer = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+    const decimal = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const benchmarkRows = [
+      ['Life-cycle cost ($)', (s) => `$${integer.format(s.lifeCycleCost)}`],
+      ['Capex ($)', (s) => `$${integer.format(s.capex)}`],
+      ['PCM capex ($)', (s) => `$${integer.format(s.pcmCapex)}`],
+      ['Insulation capex ($)', (s) => `$${integer.format(s.insulationCapex)}`],
+      ['HVAC capex ($)', (s) => `$${integer.format(s.hvacCapex)}`],
+      ['Annual opex ($)', (s) => `$${integer.format(s.annualOpex)}`],
+      ['Energy cost ($/yr)', (s) => `$${integer.format(s.energyCost)}`],
+      ['Demand cost ($/yr)', (s) => `$${integer.format(s.demandCost)}`],
+      ['Electricity (kWh/yr)', (s) => integer.format(s.electricityKwh)],
+      ['Hourly comparison electricity (kWh/yr)', (s) => integer.format(s.annualElectricity)],
+      ['Hourly comparison electricity cost ($/yr)', (s) => `$${integer.format(s.annualElectricityCost)}`],
+      ['Gas (kWh/yr)', (s) => integer.format(s.gasKwh)],
+      ['CO₂ (t/yr)', (s) => decimal.format(s.co2T)],
+      ['Energy cost ($/kg crop)', (s) => `$${s.energyCostPerKgCrop.toFixed(2)}`],
+      ['Annual savings vs Base ($/yr)', (s) => `$${integer.format(s.annualSavingsVsBase)}`],
+      ['Additional capex vs Base ($)', (s) => `$${integer.format(s.additionalCapexVsBase)}`],
+      ['Life-cycle savings vs Base ($)', (s) => `$${integer.format(s.lifecycleSavingsVsBase)}`],
     ];
     const c = COLORS();
-    $('#detailTable').innerHTML = `<thead><tr><th>Detail</th>${STRATEGIES.map((s) => `<th style="color:${c[s.id]}">${s.name}</th>`).join('')}</tr></thead>
-      <tbody>${rows.map(([l, f]) => `<tr><td>${l}</td>${STRATEGIES.map((s) => `<td>${f(R[s.id].eco, R[s.id])}</td>`).join('')}</tr>`).join('')}</tbody>`;
-    const tp = R.pcm.sim.tp;
-    if (tp.area > tp.g.envA * 1.5) $('#detailTable').insertAdjacentHTML('beforeend', `<caption class="muted small" style="caption-side:bottom;text-align:left;padding-top:8px">⚠ PCM panel area (${num(tp.area)} m²) exceeds 1.5× envelope area. Use thicker panels or less PCM.</caption>`);
+    const strategyColors = [c.base, c.hybrid, c.pcm];
+    $('#benchmarkStatus').textContent = `Loaded ${strategyBenchmark.length} strategies from strategy_comparison_data.csv. Annual savings are relative to Base.`;
+    $('#benchmarkTable').innerHTML = `<thead><tr><th>Metric</th>${strategyBenchmark.map((s, i) => `<th style="color:${strategyColors[i]}">${esc(s.name)}</th>`).join('')}</tr></thead>
+      <tbody>${benchmarkRows.map(([label, format]) => `<tr><td>${label}</td>${strategyBenchmark.map((s) => `<td>${format(s)}</td>`).join('')}</tr>`).join('')}</tbody>`;
   }
 
   // ---------- Exact cost calculation (worked example) ----------
   let calcId = 'pcm';
   let paybackInvestment = null;
   let paybackReference = null;
+  function paybackCosts(strategy) {
+    const annualOpex = strategy.annualElectricityCost;
+    const costs = [strategy.capex];
+    let cumulative = strategy.capex;
+    for (let year = 1; year <= P.horizon; year++) {
+      const cashFlow = annualOpex * (1 + P.escalation / 100) ** (year - 1);
+      cumulative += cashFlow / (1 + P.discount / 100) ** year;
+      costs.push(cumulative);
+    }
+    return costs;
+  }
   function renderCalc() {
     if (!R) return;
     $('#calcChips').innerHTML = STRATEGIES.map((s) => `<button type="button" class="chip ${s.id === calcId ? 'on' : ''}" data-id="${s.id}">${s.name}</button>`).join('');
@@ -734,8 +799,15 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
   function buildMonthChips() {
     const c = $('#monthChips');
     c.innerHTML = MONTHS.map((m, i) => `<button type="button" class="chip" data-m="${i}">${m}</button>`).join('');
-    const electricityChips = $('#electricityMonthChips');
-    electricityChips.innerHTML = MONTHS.map((m, i) => `<button type="button" class="chip" data-m="${i}">${m}</button>`).join('');
+    $('#electricityMonth').innerHTML = MONTHS.map((m, i) => `<option value="${i}">${m}</option>`).join('');
+    $('#electricityView').onchange = (event) => {
+      electricityView = event.target.value;
+      renderElectricity();
+    };
+    $('#electricityMonth').onchange = (event) => {
+      electricityMonth = Number(event.target.value);
+      renderElectricity();
+    };
     const selectMonth = (e) => {
       const button = e.target.closest('.chip');
       if (!button || button.dataset.m == null) return;
@@ -743,42 +815,163 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
       renderDay();
     };
     c.onclick = selectMonth;
-    electricityChips.onclick = selectMonth;
     $('#pairSel').onchange = renderDay;
   }
   function renderDay() {
     document.querySelectorAll('#monthChips .chip').forEach((ch, i) => ch.classList.toggle('on', i === month));
     const c = COLORS();
     const [a, b] = $('#pairSel').value.split('|');
-    const A = R[a].sim.months[month].hr, B = R[b].sim.months[month].hr;
+    const nameA = STRATEGIES.find((strategy) => strategy.id === a).name;
+    const nameB = STRATEGIES.find((strategy) => strategy.id === b).name;
     const hours = [...Array(24).keys()].map((h) => `${String(h).padStart(2, '0')}:00`);
-    const nameA = STRATEGIES.find((s) => s.id === a).name, nameB = STRATEGIES.find((s) => s.id === b).name;
     const band = (v) => hours.map(() => v);
-    const PCM_T = '#ea580c', FF = '#e11d48';
     const ds = [
-      { label: 'Outdoor air', data: A.Tout, borderColor: c.out, backgroundColor: c.out, borderDash: [2, 4], pointRadius: 0, pointStyle: 'line', borderWidth: 2, order: 5 },
-      { label: `Indoor · ${nameA}`, data: A.Tin, borderColor: c[a], backgroundColor: c[a], borderWidth: 4, pointRadius: 3, pointStyle: 'circle', order: 3 },
-      { label: `Indoor · ${nameB}`, data: B.Tin, borderColor: c[b], backgroundColor: c[b], borderWidth: 2.5, borderDash: [9, 5], pointRadius: 4.5, pointStyle: 'triangle', order: 2 },
-      { label: 'Crop band', data: band(P.hi), borderColor: 'rgba(34,197,94,.55)', borderWidth: 1, backgroundColor: 'rgba(34,197,94,.10)', fill: '+1', pointRadius: 0, pointStyle: 'rect', order: 9 },
-      { label: '_lo', data: band(P.lo), borderColor: 'rgba(34,197,94,.55)', borderWidth: 1, pointRadius: 0, order: 9 },
+      ...(thermalTemperatures ? [
+      { label: `Indoor · ${nameA}`, data: thermalTemperatures[a][month], borderColor: c[a], backgroundColor: c[a], borderWidth: 3, pointRadius: 0 },
+      { label: `Indoor · ${nameB}`, data: thermalTemperatures[b][month], borderColor: c[b], backgroundColor: c[b], borderWidth: 2.5, borderDash: [9, 5], pointRadius: 0 },
+      ] : []),
+      { label: 'Crop band', data: band(P.hi), borderColor: 'rgba(34,197,94,.55)', borderWidth: 1, backgroundColor: 'rgba(34,197,94,.10)', fill: '+1', pointRadius: 0 },
+      { label: '_lo', data: band(P.lo), borderColor: 'rgba(34,197,94,.55)', borderWidth: 1, pointRadius: 0 },
     ];
-    const pcmSide = R[b].sim.tp.m ? B : R[a].sim.tp.m ? A : null;
-    if (pcmSide) ds.splice(3, 0, { label: 'PCM panel temperature', data: pcmSide.Tpcm, borderColor: PCM_T, backgroundColor: PCM_T, borderWidth: 2.5, pointRadius: 0, pointStyle: 'line', order: 1 });
-    if (comsol && $('#ffMode').checked) ds.push({ label: `PhaseFarm free-float · ${nameB}`, data: ffDay(b).Tin, borderColor: FF, backgroundColor: FF, borderDash: [4, 3], pointRadius: 0, pointStyle: 'line', borderWidth: 2, order: 1 });
+    if (comsol && $('#ffMode').checked) ds.push({ label: `PhaseFarm free-float · ${nameB}`, data: ffDay(b).Tin, borderColor: '#e11d48', backgroundColor: '#e11d48', borderDash: [4, 3], pointRadius: 0, pointStyle: 'line', borderWidth: 2, order: 1 });
     if (comsol) ds.push({ label: 'COMSOL import', type: 'scatter', data: comsol.map(([t, T]) => ({ x: t, y: T })), xAxisID: 'xs', backgroundColor: c.text, pointStyle: 'rectRot', pointRadius: 3, showLine: false, order: 0 });
     const scales = {
       x: { ticks: { color: c.muted, maxTicksLimit: 8 }, grid: { color: c.border } },
       y: { title: { display: true, text: '°C', color: c.muted }, ticks: { color: c.muted }, grid: { color: c.border } },
     };
     if (comsol) scales.xs = { type: 'linear', min: -0.5, max: 23.5, display: false, offset: false };
+    $('#thermalChartTitle').textContent = `Temperature comparison · ${MONTHS[month]} · ${nameA} vs ${nameB}`;
+    $('#thermalDataStatus').textContent = thermalTemperatures
+      ? 'Monthly hourly indoor-temperature means from All_Three_Models_Hourly_Comparison.csv.'
+      : 'Loading thermal comparison data…';
     upsert('chTemp', { type: 'line', data: { labels: hours, datasets: ds },
       options: baseChartOpts({ scales, plugins: { legend: { position: 'bottom', labels: { color: c.text, padding: 16, usePointStyle: true, pointStyleWidth: 26, font: { size: 12 }, filter: (i) => !i.text.startsWith('_'), sort: (x, y) => x.datasetIndex - y.datasetIndex } }, tooltip: { filter: (i) => !i.dataset.label.startsWith('_') && i.dataset.label !== 'Crop band', callbacks: { label: (x) => `${x.dataset.label}: ${(+x.parsed.y).toFixed(1)} °C` } } } }) });
 
     renderElectricity();
-    if (comsol) scoreComsol(B);
+    if (comsol) scoreComsol(R[b].sim.months[month].hr);
   }
-  const inPeak = (h) => (P.peakStart <= P.peakEnd ? h >= P.peakStart && h < P.peakEnd : h >= P.peakStart || h < P.peakEnd);
-
+  async function loadThermalTemperatures() {
+    const status = $('#thermalDataStatus');
+    try {
+      const response = await fetch('All_Three_Models_Hourly_Comparison.csv');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const lines = (await response.text()).split(/\r?\n/);
+      const headers = lines[0].split(',').map((x) => x.trim());
+      const columns = {
+        base: headers.indexOf('Traditional_indoor_temp_C'),
+        pcm: headers.indexOf('Single_PCM_indoor_temp_C'),
+        hybrid: headers.indexOf('Hybrid_PCM_indoor_temp_C'),
+      };
+      const electricityColumns = {
+        base: headers.indexOf('Traditional_electricity_kWh'),
+        pcm: headers.indexOf('Single_PCM_electricity_kWh'),
+        hybrid: headers.indexOf('Hybrid_PCM_electricity_kWh'),
+      };
+      if (Object.values(columns).some((i) => i < 0)) throw new Error('Required indoor-temperature columns are missing.');
+      const sums = Object.fromEntries(Object.keys(columns).map((key) => [key, Array.from({ length: 12 }, () => new Array(24).fill(0))]));
+      const counts = Array.from({ length: 12 }, () => new Array(24).fill(0));
+      const electricityByMonth = Array.from({ length: 12 }, () => []);
+      for (const line of lines.slice(1)) {
+        if (!line.trim()) continue;
+        const cells = line.split(',');
+        const match = cells[0].match(/^\d{4}-(\d{2})-\d{2}T(\d{2}):/);
+        if (!match) continue;
+        const m = Number(match[1]) - 1, h = Number(match[2]);
+        if (m < 0 || m > 11 || h < 0 || h > 23) continue;
+        for (const [key, index] of Object.entries(columns)) {
+          const value = Number(cells[index]);
+          if (!Number.isFinite(value)) throw new Error(`Invalid ${headers[index]} value in the data file.`);
+          sums[key][m][h] += value;
+        }
+        if (Object.values(electricityColumns).some((i) => i < 0)) throw new Error('Required hourly electricity columns are missing.');
+        const kWh = Object.fromEntries(Object.entries(electricityColumns).map(([key, index]) => {
+          const value = Number(cells[index]);
+          if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid ${headers[index]} value in the data file.`);
+          return [key, value];
+        }));
+        electricityByMonth[m].push({ date: cells[0].slice(5, 10), hour: h, kWh });
+        counts[m][h]++;
+      }
+      if (counts.some((monthCounts) => monthCounts.some((count) => count === 0))) throw new Error('The data file does not contain every hour of every month.');
+      if (electricityByMonth.some((rows, m) => rows.length !== [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m] * 24)) {
+        throw new Error('The data file does not contain a complete hourly year for electricity.');
+      }
+      thermalTemperatures = Object.fromEntries(Object.keys(columns).map((key) => [
+        key, sums[key].map((monthSums, m) => monthSums.map((sum, h) => sum / counts[m][h])),
+      ]));
+      comparisonElectricity = electricityByMonth;
+      status.className = 'muted small';
+      renderPayback();
+      renderDay();
+    } catch (error) {
+      status.textContent = `Could not load thermal comparison data: ${error.message}`;
+      status.className = 'muted small err';
+      console.error('Thermal comparison data:', error);
+    }
+  }
+  async function loadStrategyBenchmark() {
+    const status = $('#benchmarkStatus');
+    try {
+      const response = await fetch('strategy_comparison_data.csv');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const lines = (await response.text()).split(/\r?\n/).filter((line) => line.trim());
+      const headers = lines[0].split(',').map((header) => header.trim());
+      const required = ['strategy_id', 'name', 'life_cycle_cost', 'capex', 'pcm_capex', 'insulation_capex', 'hvac_capex',
+        'annual_opex', 'energy_cost', 'demand_cost', 'electricity_kwh', 'gas_kwh', 'co2_t', 'energy_cost_per_kg_crop',
+        'annual_savings_vs_base', 'additional_capex_vs_base', 'lifecycle_savings_vs_base', 'annual_electricity', 'annual_electricity_cost'];
+      const missing = required.filter((header) => !headers.includes(header));
+      if (missing.length) throw new Error(`Missing columns: ${missing.join(', ')}`);
+      const records = lines.slice(1).map((line, index) => {
+        const cells = line.split(',');
+        const value = (key) => cells[headers.indexOf(key)]?.trim();
+        const number = (key) => Number(value(key));
+        const record = {
+          id: value('strategy_id'),
+          name: value('name'),
+          lifeCycleCost: number('life_cycle_cost'),
+          capex: number('capex'),
+          pcmCapex: number('pcm_capex'),
+          insulationCapex: number('insulation_capex'),
+          hvacCapex: number('hvac_capex'),
+          annualOpex: number('annual_opex'),
+          energyCost: number('energy_cost'),
+          demandCost: number('demand_cost'),
+          electricityKwh: number('electricity_kwh'),
+          annualElectricity: number('annual_electricity'),
+          annualElectricityCost: number('annual_electricity_cost'),
+          gasKwh: number('gas_kwh'),
+          co2T: number('co2_t'),
+          energyCostPerKgCrop: number('energy_cost_per_kg_crop'),
+          annualSavingsVsBase: number('annual_savings_vs_base'),
+          additionalCapexVsBase: number('additional_capex_vs_base'),
+          lifecycleSavingsVsBase: number('lifecycle_savings_vs_base'),
+        };
+        if (!STRATEGIES.some((strategy) => strategy.id === record.id) || !record.name ||
+          Object.values(record).some((item) => typeof item === 'number' && !Number.isFinite(item))) {
+          throw new Error(`Invalid strategy record on CSV line ${index + 2}.`);
+        }
+        return record;
+      });
+      if (records.length !== STRATEGIES.length || STRATEGIES.some((strategy) => !records.some((record) => record.id === strategy.id))) {
+        throw new Error('The CSV must contain exactly one row for each of Base, Hybrid, and Full PCM.');
+      }
+      const base = records.find((record) => record.id === 'base');
+      if (records.some((record) => record.annualSavingsVsBase !== base.annualOpex - record.annualOpex)) {
+        throw new Error('Annual savings values must equal Base annual operating cost minus each strategy’s annual operating cost.');
+      }
+      strategyBenchmark = records;
+      renderVerdict();
+      renderBenchmark();
+      renderCards();
+      renderAnnualOpex();
+      renderBreak();
+      renderPayback();
+    } catch (error) {
+      status.textContent = `Could not load strategy comparison data: ${error.message}`;
+      status.className = 'muted small err';
+      console.error('Strategy comparison data:', error);
+    }
+  }
   // ---------- COMSOL overlay ----------
   function parseCsv(text) {
     const rows = [];
@@ -1613,8 +1806,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
   }
   function calibrate() {
     if (!comsol) { toast('Import a COMSOL temperature CSV first'); return; }
-    const [, b] = $('#pairSel').value.split('|');
-    const s = STRATEGIES.find((x) => x.id === b);
+    const s = STRATEGIES.find((x) => x.id === 'hybrid');
     const rmse = (hr) => Math.sqrt(comsol.reduce((acc, [t, T]) => { const i = Math.floor(t), f = t - i, a = hr.Tin[i % 24], c = hr.Tin[(i + 1) % 24]; return acc + Math.pow(a + (c - a) * f - T, 2); }, 0) / comsol.length);
     const ff = $('#ffMode').checked;
     const run = (h, mm) => { const q = { ...P, hConv: h, massMult: mm, _loads: null }; return rmse(PF.simulateDay(q, PF.thermalParams(q, s), month, { freeFloat: ff }).hr); };
@@ -1775,6 +1967,8 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
     $('#btnReset').onclick = () => { P = defaults(); syncForm(); markPresets(); update(); fetchWeatherProfile(true); };
     $('#btnShare').onclick = async () => { saveHash(); try { await navigator.clipboard.writeText(location.href); toast('Link copied to clipboard'); } catch (e) { toast('Copy the URL from the address bar'); } };
     $('#btnCsv').onclick = exportCsv;
+    loadThermalTemperatures();
+    loadStrategyBenchmark();
     fetchSiteConfig().then(() => fetchWeatherProfile(false));
     let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { renderPriceMap(); renderDesignMap(null); }, 150); });
   }

@@ -54,7 +54,7 @@
   };
 
   const CROPS = {
-    lettuce:    { name: 'Lettuce / leafy greens', lo: 18, hi: 24, critLo: 4, critHi: 30, yieldKg: 40, price: 6, cycle: 35 },
+    lettuce:    { name: 'Lettuce / leafy greens', lo: 18, hi: 28, critLo: 4, critHi: 30, yieldKg: 40, price: 6, cycle: 35 },
     basil:      { name: 'Basil / herbs',          lo: 18, hi: 24, critLo: 10, critHi: 35, yieldKg: 25, price: 18, cycle: 35 },
     tomato:     { name: 'Tomato',                 lo: 18, hi: 24, critLo: 8, critHi: 35, yieldKg: 50, price: 4, cycle: 90 },
     strawberry: { name: 'Strawberry',             lo: 18, hi: 24, critLo: 2, critHi: 32, yieldKg: 15, price: 10, cycle: 120 },
