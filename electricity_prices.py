@@ -15,12 +15,14 @@ Usage:
 
 import argparse
 import os
+from pathlib import Path
 
 import pandas as pd
 import requests
 
 BASE = "https://api.eia.gov/v2"
 PAGE = 5000  # EIA's max rows per request
+OUTPUT_DIR = Path(__file__).resolve().parent / "src"
 
 
 def fetch_all(route: str, params: dict) -> pd.DataFrame:
@@ -101,7 +103,7 @@ if __name__ == "__main__":
     except requests.RequestException as e:
         raise SystemExit(f"API request failed: {e}")
 
-    demand.to_csv(f"eia_2025_hourly_demand_{a.ba}.csv", index=False)
-    price.to_csv(f"eia_2025_retail_price_{a.state}.csv", index=False)
+    demand.to_csv(OUTPUT_DIR / f"eia_2025_hourly_demand_{a.ba}.csv", index=False)
+    price.to_csv(OUTPUT_DIR / f"eia_2025_retail_price_{a.state}.csv", index=False)
     print(f"Hourly demand rows: {len(demand)} (a full year is about 8,760)")
     print(f"Monthly price rows: {len(price)} (expect 12; recent months may not be published yet)")

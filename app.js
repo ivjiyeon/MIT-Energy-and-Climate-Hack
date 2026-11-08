@@ -853,7 +853,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
   async function loadThermalTemperatures() {
     const status = $('#thermalDataStatus');
     try {
-      const response = await fetch('All_Three_Models_Hourly_Comparison.csv');
+      const response = await fetch('src/All_Three_Models_Hourly_Comparison.csv');
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const lines = (await response.text()).split(/\r?\n/);
       const headers = lines[0].split(',').map((x) => x.trim());
@@ -912,7 +912,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
   async function loadStrategyBenchmark() {
     const status = $('#benchmarkStatus');
     try {
-      const response = await fetch('strategy_comparison_data.csv');
+      const response = await fetch('src/strategy_comparison_data.csv');
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const lines = (await response.text()).split(/\r?\n/).filter((line) => line.trim());
       const headers = lines[0].split(',').map((header) => header.trim());
@@ -1512,6 +1512,7 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
       document.documentElement.dataset.theme = n;
       try { localStorage.setItem('pf-theme', n); } catch (e) { /* ignore */ }
       update();
+      renderComsolResults();
     };
   }
 
@@ -1830,6 +1831,143 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
     $('#comsolStat').textContent = `Calibrated (${ff ? 'free-floating' : 'with HVAC'}) against "${s.name}" in ${MONTHS[month]}: h = ${best.h} W/m²K, mass × ${best.mm}. RMSE ${before.toFixed(2)} → ${best.e.toFixed(2)} °C.`;
     toast('Model calibrated to COMSOL');
   }
+  // Generic COMSOL table export: "% Time (s),Col A (unit),..." header followed by numeric rows.
+  function parseComsolSeriesTable(text, filename) {
+    const lines = text.split(/\r?\n/);
+    const headerIndex = lines.findIndex((line) => /^\s*%?\s*time\s*\(s\)/i.test(line));
+    if (headerIndex < 0) return null;
+    const header = lines[headerIndex].replace(/^\s*%+\s*/, '').split(',').map((x) => x.trim().replace(/^"|"$/g, ''));
+    const t = [], cols = header.slice(1).map(() => []);
+    for (const line of lines.slice(headerIndex + 1)) {
+      const s = line.trim();
+      if (!s || s.startsWith('%') || s.startsWith('#')) continue;
+      const cells = s.split(',').map(Number);
+      if (!Number.isFinite(cells[0])) continue;
+      t.push(cells[0]);
+      cols.forEach((col, i) => col.push(Number.isFinite(cells[i + 1]) ? cells[i + 1] : null));
+    }
+    if (t.length < 2) return null;
+    const series = header.slice(1).map((label, i) => {
+      const unit = (label.match(/\(([^)]*)\)\s*$/) || [])[1] || '';
+      return { label, name: label.replace(/\s*\([^)]*\)\s*$/, ''), unit, data: cols[i] };
+    }).filter((s) => s.label && s.data.some((v) => v != null));
+    const meta = {};
+    for (const line of lines.slice(0, headerIndex)) {
+      const m = line.match(/^\s*%\s*([^,]+),\s*"?([^"]*)"?/);
+      if (m) meta[m[1].trim().toLowerCase()] = m[2].replace(/,+$/, '').trim();
+    }
+    const name = filename.replace(/\.[^.]+$/, '');
+    const key = filename.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const strategy = /\bhybrid\b/.test(key) ? 'hybrid' : /\b(base|baseline)\b/.test(key) ? 'base' : /\b(pcm|full|upgraded)\b/.test(key) ? 'pcm' : null;
+    return { name, strategy, model: meta.model || '', t, series };
+  }
+
+  let comsolTables = [];
+  let comsolResultsView = 'daily';
+  let comsolResultsMonth = 0;
+  let comsolResultsSeries = null;
+  const MONTH_START_S = (() => { const d = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31], b = [0]; d.forEach((x) => b.push(b[b.length - 1] + x * 86400)); return b; })();
+  const monthOf = (t) => { let m = 0; while (m < 11 && t >= MONTH_START_S[m + 1]) m++; return m; };
+  // Integrate a power series (kW) over time to kWh, using the trapezoidal rule.
+  const integrateKWh = (t, y) => { let e = 0; for (let i = 0; i < t.length - 1; i++) if (y[i] != null && y[i + 1] != null) e += (y[i] + y[i + 1]) / 2 * (t[i + 1] - t[i]) / 3600; return e; };
+
+  function addComsolTables(tables) {
+    for (const tbl of tables) {
+      comsolTables = comsolTables.filter((x) => x.name !== tbl.name);
+      comsolTables.push(tbl);
+    }
+    const labels = [...new Set(comsolTables.flatMap((x) => x.series.map((s) => s.label)))];
+    if (!labels.includes(comsolResultsSeries)) comsolResultsSeries = labels.find((l) => /hvac elec|elec/i.test(l) && /\(kw\)/i.test(l)) || labels[0];
+    $('#comsolSeries').innerHTML = labels.map((l) => `<option>${esc(l)}</option>`).join('');
+    $('#comsolSeries').value = comsolResultsSeries;
+    renderComsolResults();
+  }
+
+  function renderComsolResults() {
+    const box = $('#comsolResults');
+    box.hidden = !comsolTables.length;
+    if (!comsolTables.length) { if (charts.chComsolResults) { charts.chComsolResults.destroy(); delete charts.chComsolResults; } return; }
+    const c = COLORS();
+    const palette = [c.base, c.hybrid, c.pcm, c.trad, c.out, c.good, c.bad];
+    const view = comsolResultsView, m = comsolResultsMonth;
+    $('#comsolMonthControl').hidden = view !== 'day';
+    $('#comsolMonthControl').style.display = view === 'day' ? 'inline-flex' : 'none';
+    let unit = '';
+    const datasets = [];
+    comsolTables.forEach((tbl, i) => {
+      const s = tbl.series.find((x) => x.label === comsolResultsSeries);
+      if (!s) return;
+      unit = s.unit;
+      const color = (tbl.strategy && c[tbl.strategy]) || palette[i % palette.length];
+      let data;
+      if (view === 'hourly') {
+        data = tbl.t.map((t, k) => ({ x: t / 86400, y: s.data[k] }));
+      } else if (view === 'daily' || view === 'monthly') {
+        const n = view === 'daily' ? Math.ceil(tbl.t[tbl.t.length - 1] / 86400) : 12;
+        const sum = new Array(n).fill(0), cnt = new Array(n).fill(0);
+        tbl.t.forEach((t, k) => {
+          if (s.data[k] == null) return;
+          const b = view === 'daily' ? Math.min(n - 1, Math.floor(t / 86400)) : monthOf(t);
+          sum[b] += s.data[k]; cnt[b]++;
+        });
+        data = view === 'daily'
+          ? sum.map((v, d) => (cnt[d] ? { x: d + 0.5, y: v / cnt[d] } : null)).filter(Boolean)
+          : sum.map((v, b) => (cnt[b] ? v / cnt[b] : null));
+      } else {
+        const sum = new Array(24).fill(0), cnt = new Array(24).fill(0);
+        tbl.t.forEach((t, k) => {
+          if (s.data[k] == null || monthOf(t) !== m) return;
+          const h = Math.floor((t % 86400) / 3600);
+          sum[h] += s.data[k]; cnt[h]++;
+        });
+        data = sum.map((v, h) => (cnt[h] ? v / cnt[h] : null));
+      }
+      datasets.push({
+        label: tbl.name, data, borderColor: color, backgroundColor: color,
+        borderWidth: view === 'hourly' ? 1 : 2, pointRadius: view === 'hourly' || view === 'daily' ? 0 : 3, tension: 0.12, spanGaps: true,
+      });
+    });
+    const linearX = view === 'hourly' || view === 'daily';
+    const fmt = (v) => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 1 ? v.toFixed(2) : v.toPrecision(3));
+    const viewName = { hourly: 'hourly', daily: 'daily mean', monthly: 'monthly mean', day: `average ${MONTHS[m]} day` }[view];
+    $('#comsolResultsTitle').textContent = `${comsolResultsSeries} · ${viewName}`;
+    $('#comsolResultsStats').innerHTML = comsolTables.map((tbl) => {
+      const find = (re) => tbl.series.find((x) => re.test(x.label) && /^kw$/i.test(x.unit));
+      const parts = [];
+      const heat = find(/heating/i), cool = find(/cooling/i), elec = find(/elec/i);
+      if (heat) parts.push(`heating ${fmt(integrateKWh(tbl.t, heat.data) / 1000)} MWh`);
+      if (cool) parts.push(`cooling ${fmt(integrateKWh(tbl.t, cool.data) / 1000)} MWh`);
+      if (elec) parts.push(`HVAC electricity ${fmt(integrateKWh(tbl.t, elec.data) / 1000)} MWh, peak ${fmt(Math.max(...elec.data.filter((v) => v != null)))} kW`);
+      const days = ((tbl.t[tbl.t.length - 1] - tbl.t[0]) / 86400).toFixed(0);
+      return `<b>${esc(tbl.name)}</b>${tbl.model ? ` (${esc(tbl.model)})` : ''}: ${tbl.t.length} rows over ${days} days${parts.length ? ' · ' + parts.join(' · ') : ''}`;
+    }).join('<br>');
+    upsert('chComsolResults', {
+      type: 'line',
+      data: linearX ? { datasets } : { labels: view === 'monthly' ? MONTHS : Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, '0')}:00`), datasets },
+      options: baseChartOpts({
+        parsing: linearX ? false : undefined,
+        normalized: linearX,
+        interaction: linearX ? { mode: 'nearest', axis: 'x', intersect: false } : { mode: 'index', intersect: false },
+        scales: {
+          x: linearX
+            ? { type: 'linear', min: 0, max: Math.ceil(Math.max(...comsolTables.map((x) => x.t[x.t.length - 1])) / 86400), title: { display: true, text: 'Day of year', color: c.muted }, ticks: { color: c.muted }, grid: { color: c.border } }
+            : { title: { display: true, text: view === 'monthly' ? 'Month' : 'Hour of day', color: c.muted }, ticks: { color: c.muted }, grid: { color: c.border } },
+          y: { title: { display: true, text: comsolResultsSeries, color: c.muted }, ticks: { color: c.muted }, grid: { color: c.border } },
+        },
+        plugins: {
+          decimation: { enabled: view === 'hourly', algorithm: 'lttb', samples: 1500 },
+          legend: { position: 'bottom', labels: { color: c.text, boxWidth: 12, usePointStyle: true } },
+          tooltip: {
+            callbacks: {
+              title: (items) => (linearX && items[0] ? `Day ${items[0].parsed.x.toFixed(view === 'hourly' ? 2 : 0)}` : items[0]?.label),
+              label: (x) => `${x.dataset.label}: ${fmt(x.parsed.y)} ${unit}`,
+            },
+          },
+        },
+      }),
+    });
+  }
+
   function parseComsolLoadTable(text, filename) {
     const lines = text.split(/\r?\n/);
     const splitCsv = (line) => {
@@ -1935,16 +2073,38 @@ Break-even PCM price    = the $/kg at which a PCM strategy's LCC equals Base LCC
     $('#btnWeatherYear').onclick = () => comsolWeather(true);
     $('#btnCalib').onclick = calibrate;
     $('#loadsFile').onchange = async (e) => {
-      const f = e.target.files[0]; if (!f) return;
-      const r = parseLoads(await f.text(), f.name);
-      if (r?.error) { $('#loadsStat').textContent = r.error; return; }
-      if (!r) { $('#loadsStat').textContent = 'No valid rows. Expected strategy/month/heat_kWh_per_day/cool_kWh_per_day, or a COMSOL table with time (s) and heating/cooling power (kW).'; return; }
-      LOADS = r.data; $('#useLoads').disabled = false; $('#useLoads').checked = true;
-      $('#loadsStat').textContent = r.derived
-        ? `${r.n} monthly daily-load values derived from hourly COMSOL output for ${r.strategy}. Months or strategies left out use the built-in model.`
-        : `${r.n} rows loaded for ${Object.keys(r.data).join(', ')}. Months or strategies left out use the built-in model.`;
-      update(); toast('Economics now use COMSOL loads');
+      const files = [...e.target.files]; if (!files.length) return;
+      const msgs = [], tables = [];
+      let merged = null;
+      for (const f of files) {
+        const text = await f.text();
+        const tbl = parseComsolSeriesTable(text, f.name);
+        if (tbl) tables.push(tbl);
+        const r = parseLoads(text, f.name);
+        if (r?.error) { msgs.push(`${f.name}: ${r.error}${tbl ? ' Results are still plotted below.' : ''}`); continue; }
+        if (!r) { if (!tbl) msgs.push(`${f.name}: no valid rows. Expected strategy/month/heat_kWh_per_day/cool_kWh_per_day, or a COMSOL table with time (s) and heating/cooling power (kW).`); continue; }
+        merged = merged || {};
+        for (const id in r.data) merged[id] = Object.assign(merged[id] || {}, r.data[id]);
+        msgs.push(r.derived
+          ? `${f.name}: ${r.n} monthly daily-load values derived from hourly COMSOL output for ${r.strategy}.`
+          : `${f.name}: ${r.n} rows loaded for ${Object.keys(r.data).join(', ')}.`);
+      }
+      if (tables.length) addComsolTables(tables);
+      if (merged) {
+        LOADS = Object.assign({}, LOADS || {}, merged);
+        $('#useLoads').disabled = false; $('#useLoads').checked = true;
+        msgs.push('Months or strategies left out use the built-in model.');
+        update(); toast('Economics now use COMSOL loads');
+      }
+      $('#loadsStat').innerHTML = msgs.map(esc).join('<br>');
+      e.target.value = '';
     };
+    $('#comsolMonth').innerHTML = MONTHS.map((m, i) => `<option value="${i}">${m}</option>`).join('');
+    $('#comsolView').value = comsolResultsView;
+    $('#comsolSeries').onchange = (e) => { comsolResultsSeries = e.target.value; renderComsolResults(); };
+    $('#comsolView').onchange = (e) => { comsolResultsView = e.target.value; renderComsolResults(); };
+    $('#comsolMonth').onchange = (e) => { comsolResultsMonth = Number(e.target.value); renderComsolResults(); };
+    $('#comsolResultsClear').onclick = () => { comsolTables = []; renderComsolResults(); };
     $('#useLoads').onchange = update;
     $('#ffMode').onchange = renderDay;
   }

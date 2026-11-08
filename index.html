@@ -9,12 +9,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css?v=3">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f766e'/%3E%3Cpath d='M9 22c0-7 5-12 14-12-1 8-6 13-14 12z' fill='%23a7f3d0'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="src/favicon.png">
 </head>
 <body>
 <header class="topbar">
   <div class="brand">
-    <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--brand)"/><path d="M9 22c0-7 5-12 14-12-1 8-6 13-14 12z" fill="var(--brand-soft)"/></svg>
+    <img src="src/logo.png" alt="PhaseFarm logo" width="50" height="50">
     <div><strong>PhaseFarm</strong><span>PCM vs insulation cost explorer for hydroponics</span></div>
   </div>
   <nav class="nav">
@@ -173,13 +173,35 @@
         </div>
         <div class="step">
           <span class="num">3</span><h3>Drive costs with COMSOL loads</h3>
-          <p class="muted small">Import daily heating/cooling loads per strategy and month, or a COMSOL hourly table with Time (s) and Heating/Cooling Energy (kW). Hourly tables are converted to monthly average kWh/day; include base, hybrid, or pcm in the filename to identify the strategy. The economics then use your COMSOL numbers in place of the built-in model's. <a href="comsol/comsol_loads_template.csv" download>Template</a></p>
+          <p class="muted small">Import daily heating/cooling loads per strategy and month, or a COMSOL hourly table with Time (s) and Heating/Cooling Energy (kW). Hourly tables are converted to monthly average kWh/day; include base, hybrid, or pcm in the filename to identify the strategy. The economics then use your COMSOL numbers in place of the built-in model's. <a href="src/comsol_loads_template.csv" download>Template</a></p>
           <div class="row">
-            <label class="btn ghost file">Import loads CSV<input type="file" id="loadsFile" accept=".csv,.txt" hidden></label>
+            <label class="btn ghost file">Import loads CSV<input type="file" id="loadsFile" accept=".csv,.txt" multiple hidden></label>
             <label class="toggle"><input type="checkbox" id="useLoads" disabled> Use COMSOL loads</label>
           </div>
           <span class="muted small" id="loadsStat"></span>
         </div>
+      </div>
+      <div class="chart-box" id="comsolResults" hidden>
+        <h3 id="comsolResultsTitle">Imported COMSOL results</h3>
+        <p class="muted small" id="comsolResultsStats" aria-live="polite"></p>
+        <div class="toolbar">
+          <label class="inline">Series
+            <select id="comsolSeries"></select>
+          </label>
+          <label class="inline">View
+            <select id="comsolView">
+              <option value="hourly">Hourly (full year)</option>
+              <option value="daily">Daily mean</option>
+              <option value="monthly">Monthly mean</option>
+              <option value="day">Average day of month</option>
+            </select>
+          </label>
+          <label class="inline" id="comsolMonthControl" hidden>Month
+            <select id="comsolMonth"></select>
+          </label>
+          <button class="btn ghost" type="button" id="comsolResultsClear">Clear results</button>
+        </div>
+        <div class="cwrap tall"><canvas id="chComsolResults"></canvas></div>
       </div>
       <details class="more">
         <summary>Which COMSOL capabilities fit this problem?</summary>

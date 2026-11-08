@@ -6,7 +6,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 
-DATA_DIR = Path(__file__).resolve().parent
+DATA_DIR = Path(__file__).resolve().parent.parent / "src"
+OUTPUT_PATH = Path(__file__).resolve().parent / "profile.js"
 YEAR = 2025
 REGIONS = {
     "denver": {
@@ -98,11 +99,10 @@ def build_profile():
 
 if __name__ == "__main__":
     profile = build_profile()
-    output = DATA_DIR / "profile.js"
-    output.write_text(
+    OUTPUT_PATH.write_text(
         "window.PF_EIA_RETAIL_DATA = "
         + json.dumps(profile, separators=(",", ":"), sort_keys=True)
         + ";\n",
         encoding="utf-8",
     )
-    print(f"Wrote {output} with Denver and Boston profiles.")
+    print(f"Wrote {OUTPUT_PATH} with Denver and Boston profiles.")
